@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'wicara/wicara-mobile/**'
+      - '**'
       - '.github/workflows/**'
 
 jobs:
@@ -28,7 +28,6 @@ jobs:
 
       - name: Precache Flutter Android engine
         run: flutter precache --android
-        working-directory: wicara/wicara-mobile
 
       - name: Write local.properties
         run: |
@@ -42,11 +41,9 @@ jobs:
           cat android/local.properties
           echo "=== Flutter SDK exists? ==="
           ls "$FLUTTER_SDK/packages/flutter_tools/gradle" | head -5
-        working-directory: wicara/wicara-mobile
 
       - name: Flutter pub get
         run: flutter pub get
-        working-directory: wicara/wicara-mobile
 
       - name: Inspect Flutter Gradle plugin structure
         run: |
@@ -55,14 +52,12 @@ jobs:
           echo "=== releaseCompileClasspath ==="
           chmod +x android/gradlew
           ./android/gradlew :app:dependencies --configuration releaseCompileClasspath 2>&1 | grep -E "flutter|io\.flutter|FAILED|Could not|classpath" | head -40 || true
-        working-directory: wicara/wicara-mobile
 
       - name: Build APK
         run: flutter build apk --release -v
-        working-directory: wicara/wicara-mobile
 
       - name: Upload APK to GitHub Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: wicara-mobile-apk
-          path: wicara/wicara-mobile/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
