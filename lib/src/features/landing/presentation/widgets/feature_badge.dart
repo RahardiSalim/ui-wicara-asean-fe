@@ -3,10 +3,18 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/wicara_colors.dart';
 
 class FeatureBadge extends StatelessWidget {
-  const FeatureBadge({required this.icon, required this.label, super.key});
+  const FeatureBadge({
+    required this.icon,
+    required this.label,
+    required this.iconColor,
+    required this.backgroundColor,
+    super.key,
+  });
 
   final IconData icon;
   final String label;
+  final Color iconColor;
+  final Color backgroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +26,7 @@ class FeatureBadge extends StatelessWidget {
             height: 48,
             width: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFFF2F3FF),
+              color: backgroundColor,
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
@@ -28,7 +36,7 @@ class FeatureBadge extends StatelessWidget {
                 ),
               ],
             ),
-            child: Icon(icon, color: WicaraColors.periwinkle, size: 24),
+            child: Icon(icon, color: iconColor, size: 24),
           ),
           const SizedBox(height: 10),
           SizedBox(
@@ -40,7 +48,7 @@ class FeatureBadge extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: WicaraColors.text,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),

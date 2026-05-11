@@ -15,14 +15,7 @@ class LearningCurveMockup extends StatelessWidget {
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: 0.05),
-                    const Color(0xFFF4F6FF).withValues(alpha: 0.6),
-                  ],
-                ),
+                color: WicaraColors.pageBackground.withValues(alpha: 0.74),
                 borderRadius: BorderRadius.circular(26),
               ),
               child: const CustomPaint(painter: _LearningCurvePainter()),
@@ -33,7 +26,7 @@ class LearningCurveMockup extends StatelessWidget {
             left: 22,
             child: _SpeechBubble(
               text: 'สวัสดี',
-              background: Color(0xFFF6F7FF),
+              background: WicaraColors.speechBlue,
               tail: _BubbleTail.right,
             ),
           ),
@@ -42,7 +35,7 @@ class LearningCurveMockup extends StatelessWidget {
             left: 0,
             child: _SpeechBubble(
               text: 'Xin chao',
-              background: Color(0xFFF2F3FF),
+              background: WicaraColors.glowPeach,
               tail: _BubbleTail.none,
             ),
           ),
@@ -51,7 +44,7 @@ class LearningCurveMockup extends StatelessWidget {
             right: 0,
             child: _SpeechBubble(
               text: 'Bahasa',
-              background: WicaraColors.speechBlue,
+              background: WicaraColors.glowLilac,
               tail: _BubbleTail.left,
             ),
           ),
@@ -71,11 +64,11 @@ class LearningCurveMockup extends StatelessWidget {
               height: 34,
               width: 34,
               decoration: BoxDecoration(
-                color: const Color(0xFFDDF6FF),
+                color: WicaraColors.glowLemon,
                 borderRadius: BorderRadius.circular(17),
                 boxShadow: [
                   BoxShadow(
-                    color: WicaraColors.periwinkle.withValues(alpha: 0.18),
+                    color: WicaraColors.secondary.withValues(alpha: 0.18),
                     blurRadius: 18,
                     offset: const Offset(0, 10),
                   ),
@@ -83,7 +76,7 @@ class LearningCurveMockup extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.water_drop_rounded,
-                color: Color(0xFF75BEEB),
+                color: WicaraColors.accentAmber,
                 size: 20,
               ),
             ),
@@ -95,11 +88,11 @@ class LearningCurveMockup extends StatelessWidget {
               height: 42,
               width: 42,
               decoration: BoxDecoration(
-                gradient: WicaraColors.primaryGradient,
+                color: WicaraColors.secondary,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: WicaraColors.periwinkle.withValues(alpha: 0.24),
+                    color: WicaraColors.secondary.withValues(alpha: 0.26),
                     blurRadius: 18,
                     offset: const Offset(0, 10),
                   ),
@@ -141,7 +134,7 @@ class _SpeechBubble extends StatelessWidget {
           text,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: WicaraColors.muted,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -213,10 +206,10 @@ class _LearningCurvePainter extends CustomPainter {
       ..color = WicaraColors.shadowBlue.withValues(alpha: 0.16)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
     final barPaints = [
-      Paint()..color = const Color(0xFFE4E8FF).withValues(alpha: 0.76),
-      Paint()..color = const Color(0xFFDDE3FF).withValues(alpha: 0.7),
-      Paint()..color = const Color(0xFFEAE6FF).withValues(alpha: 0.8),
-      Paint()..color = const Color(0xFFD6EFF8).withValues(alpha: 0.82),
+      Paint()..color = WicaraColors.primarySoft.withValues(alpha: 0.76),
+      Paint()..color = WicaraColors.glowLilac.withValues(alpha: 0.7),
+      Paint()..color = WicaraColors.glowPeach.withValues(alpha: 0.78),
+      Paint()..color = WicaraColors.glowMint.withValues(alpha: 0.82),
     ];
 
     final shadowRect = RRect.fromRectAndRadius(
@@ -248,7 +241,7 @@ class _LearningCurvePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round
-      ..color = WicaraColors.periwinkle.withValues(alpha: 0.62);
+      ..color = WicaraColors.secondary.withValues(alpha: 0.72);
 
     final path = Path()
       ..moveTo(size.width * 0.14, size.height * 0.75)
@@ -281,7 +274,7 @@ class _LearningCurvePainter extends CustomPainter {
     final dotStroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
-      ..color = WicaraColors.periwinkle.withValues(alpha: 0.72);
+      ..color = WicaraColors.secondary.withValues(alpha: 0.78);
 
     for (final point in points) {
       canvas.drawCircle(point, 6, dotFill);
