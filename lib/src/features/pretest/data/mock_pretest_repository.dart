@@ -24,13 +24,14 @@ class MockPretestRepository implements PretestRepository {
     }
 
     return const KnowledgeState(
-      skill: 'Root Cause Analysis',
+      skill: 'Missing prerequisite: causal drivers',
       gapLabel: 'GAP',
       message:
-          "You're close - review key frameworks\nand try targeted practice.",
+          'The gap looks like choosing a tool before naming the defect driver, evidence, and likely cause chain.',
       pathTitle: 'Personalized path generated',
       pathMeta: '12-15 min   •   3 skills',
-      pathDescription: 'Adaptive lessons and practice\nfocused on your gaps.',
+      pathDescription:
+          'Start with prerequisites, then practice root-cause questions.',
     );
   }
 }

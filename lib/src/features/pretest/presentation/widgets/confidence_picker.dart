@@ -21,8 +21,8 @@ class ConfidencePicker extends StatelessWidget {
         Text(
           'How confident are you?',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: WicaraColors.muted,
-            fontWeight: FontWeight.w900,
+            color: WicaraColors.secondary,
+            fontWeight: FontWeight.w500,
           ),
         ),
         const SizedBox(height: 15),
@@ -31,8 +31,8 @@ class ConfidencePicker extends StatelessWidget {
             Text(
               'Low',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: WicaraColors.softMuted,
-                fontWeight: FontWeight.w900,
+                color: WicaraColors.secondaryLight,
+                fontWeight: FontWeight.w400,
               ),
             ),
             Expanded(
@@ -48,7 +48,7 @@ class ConfidencePicker extends StatelessWidget {
                         height: score == value ? 18 : 8,
                         decoration: BoxDecoration(
                           color: score == value
-                              ? WicaraColors.periwinkle
+                              ? WicaraColors.secondary
                               : WicaraColors.softMuted.withValues(alpha: 0.58),
                           shape: BoxShape.circle,
                         ),
@@ -60,8 +60,8 @@ class ConfidencePicker extends StatelessWidget {
             Text(
               'High',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: WicaraColors.muted,
-                fontWeight: FontWeight.w900,
+                color: WicaraColors.secondary,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],

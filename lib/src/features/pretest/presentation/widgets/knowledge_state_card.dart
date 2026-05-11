@@ -8,7 +8,10 @@ class KnowledgeStateCard extends StatelessWidget {
     required this.message,
     required this.badge,
     required this.icon,
+    this.iconColor = WicaraColors.primaryDeep,
+    this.iconBackgroundColor = WicaraColors.primarySoft,
     this.height = 354,
+    this.showChevron = true,
     super.key,
   });
 
@@ -16,7 +19,10 @@ class KnowledgeStateCard extends StatelessWidget {
   final String message;
   final String badge;
   final IconData icon;
+  final Color iconColor;
+  final Color iconBackgroundColor;
   final double height;
+  final bool showChevron;
 
   @override
   Widget build(BuildContext context) {
@@ -37,21 +43,22 @@ class KnowledgeStateCard extends StatelessWidget {
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: const Color(0xFFF4F6FF),
+              color: iconBackgroundColor,
               borderRadius: BorderRadius.circular(13),
             ),
-            child: Icon(icon, color: WicaraColors.periwinkle, size: 25),
+            child: Icon(icon, color: iconColor, size: 25),
           ),
           const SizedBox(width: 17),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Row(
                   children: [
@@ -63,7 +70,7 @@ class KnowledgeStateCard extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               fontSize: 14,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w600,
                             ),
                       ),
                     ),
@@ -74,25 +81,27 @@ class KnowledgeStateCard extends StatelessWidget {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF3D9),
+                          color: const Color(0xFFFFF6E6),
                           borderRadius: BorderRadius.circular(9),
                         ),
                         child: Text(
                           badge,
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
-                                color: const Color(0xFFD59A3A),
+                                color: const Color(0xFFC28A35),
                                 fontSize: 10,
-                                fontWeight: FontWeight.w900,
+                                fontWeight: FontWeight.w600,
                               ),
                         ),
                       ),
-                    const SizedBox(width: 8),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      color: WicaraColors.softMuted,
-                      size: 26,
-                    ),
+                    if (showChevron) ...[
+                      const SizedBox(width: 8),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: WicaraColors.softMuted,
+                        size: 26,
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 7),
@@ -102,7 +111,7 @@ class KnowledgeStateCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: WicaraColors.muted,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     height: 1.35,
                   ),
                 ),

@@ -17,9 +17,7 @@ class AssessmentOptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = isSelected
-        ? WicaraColors.periwinkle
-        : WicaraColors.line;
+    final borderColor = isSelected ? WicaraColors.secondary : WicaraColors.line;
 
     return Material(
       color: Colors.transparent,
@@ -37,7 +35,7 @@ class AssessmentOptionTile extends StatelessWidget {
             boxShadow: [
               if (isSelected)
                 BoxShadow(
-                  color: WicaraColors.periwinkle.withValues(alpha: 0.13),
+                  color: WicaraColors.secondary.withValues(alpha: 0.16),
                   blurRadius: 12,
                   offset: const Offset(0, 7),
                 ),
@@ -53,7 +51,7 @@ class AssessmentOptionTile extends StatelessWidget {
                   option.label,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     color: WicaraColors.muted,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -65,7 +63,7 @@ class AssessmentOptionTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: WicaraColors.text,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w400,
                     height: 1.28,
                   ),
                 ),
@@ -89,10 +87,10 @@ class _SelectionDot extends StatelessWidget {
       width: 20,
       height: 20,
       decoration: BoxDecoration(
-        color: isSelected ? WicaraColors.periwinkle : Colors.white,
+        color: isSelected ? WicaraColors.secondary : Colors.white,
         shape: BoxShape.circle,
         border: Border.all(
-          color: isSelected ? WicaraColors.periwinkle : WicaraColors.line,
+          color: isSelected ? WicaraColors.secondary : WicaraColors.line,
           width: 2,
         ),
       ),

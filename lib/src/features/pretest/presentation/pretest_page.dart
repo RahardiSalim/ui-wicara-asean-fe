@@ -122,6 +122,9 @@ class _PretestPageState extends State<PretestPage> {
     );
   }
 
+  PretestOption get _selectedOption =>
+      _question.options.firstWhere((option) => option.id == _selectedOptionId);
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -141,7 +144,41 @@ class _PretestPageState extends State<PretestPage> {
     }
     Navigator.of(
       context,
-    ).pushNamedAndRemoveUntil(AppRoutes.landing, (route) => false);
+    ).pushNamedAndRemoveUntil(AppRoutes.home, (route) => false);
+  }
+
+  void _goHome() {
+    Navigator.of(
+      context,
+    ).pushNamedAndRemoveUntil(AppRoutes.home, (route) => false);
+  }
+
+  void _openLargeCanvas() {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 28,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720, maxHeight: 620),
+              child: FishboneCanvas(
+                height: 540,
+                isLargePanel: true,
+                onOpenLargePanel: () => Navigator.of(context).pop(),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -178,17 +215,20 @@ class _PretestPageState extends State<PretestPage> {
         selectedOptionId: _selectedOptionId,
         confidence: _confidence,
         isSubmitting: _isSubmitting,
-        onClose: _goBack,
+        onClose: _goHome,
         onSelected: (id) => setState(() => _selectedOptionId = id),
         onConfidenceChanged: (value) => setState(() => _confidence = value),
         onSubmit: _submitAnswer,
       ),
       _PretestStage.reasoning => _ReasoningStage(
         constraints: constraints,
+        question: _question,
+        selectedOption: _selectedOption,
         controller: _reasoningController,
         isCanvasExpanded: _isCanvasExpanded,
         isSubmitting: _isSubmitting,
         onBack: _goBack,
+        onOpenLargeCanvas: _openLargeCanvas,
         onToggleCanvas: () {
           setState(() => _isCanvasExpanded = !_isCanvasExpanded);
         },
@@ -197,9 +237,7 @@ class _PretestPageState extends State<PretestPage> {
       _PretestStage.result => _ResultStage(
         constraints: constraints,
         result: _knowledgeState,
-        onContinue: () => Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil(AppRoutes.home, (route) => false),
+        onContinue: _goHome,
       ),
     };
   }
@@ -246,7 +284,7 @@ class _QuestionStage extends StatelessWidget {
               question.stepLabel,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
                 color: WicaraColors.text,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 12),
@@ -277,7 +315,7 @@ class _QuestionStage extends StatelessWidget {
                         vertical: 7,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF7F8FF),
+                        color: WicaraColors.speechBlue,
                         borderRadius: BorderRadius.circular(17),
                         border: Border.all(color: WicaraColors.line),
                       ),
@@ -285,7 +323,7 @@ class _QuestionStage extends StatelessWidget {
                         question.topic,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: WicaraColors.muted,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -303,7 +341,7 @@ class _QuestionStage extends StatelessWidget {
                     question.helper,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: WicaraColors.muted,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                       height: 1.3,
                     ),
                   ),
@@ -348,19 +386,25 @@ class _QuestionStage extends StatelessWidget {
 class _ReasoningStage extends StatelessWidget {
   const _ReasoningStage({
     required this.constraints,
+    required this.question,
+    required this.selectedOption,
     required this.controller,
     required this.isCanvasExpanded,
     required this.isSubmitting,
     required this.onBack,
+    required this.onOpenLargeCanvas,
     required this.onToggleCanvas,
     required this.onSubmit,
   });
 
   final BoxConstraints constraints;
+  final PretestQuestion question;
+  final PretestOption selectedOption;
   final TextEditingController controller;
   final bool isCanvasExpanded;
   final bool isSubmitting;
   final VoidCallback onBack;
+  final VoidCallback onOpenLargeCanvas;
   final VoidCallback onToggleCanvas;
   final VoidCallback onSubmit;
 
@@ -386,39 +430,66 @@ class _ReasoningStage extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Use chat or canvas — same evidence pipeline.',
+              'Review the question, your answer, then explain your reasoning.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: WicaraColors.muted,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 27),
             Align(
+              alignment: Alignment.centerLeft,
+              child: _ChatBubble(text: question.prompt, isUser: false),
+            ),
+            const SizedBox(height: 16),
+            Align(
               alignment: Alignment.centerRight,
               child: _ChatBubble(
-                text:
-                    'I chose B because defects\nare the outcome we need to\nunderstand before changing\nthe process.',
+                text: '${selectedOption.label}. ${selectedOption.text}',
                 isUser: true,
               ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 16),
             const Align(
               alignment: Alignment.centerLeft,
               child: _ChatBubble(
-                text: 'Great — show your reasoning\nor sketch your analysis.',
+                text: 'Why did you choose this answer? Explain your thinking.',
                 isUser: false,
               ),
             ),
             const SizedBox(height: 31),
-            _ReasoningTabs(
-              isCanvasExpanded: isCanvasExpanded,
-              onToggleCanvas: onToggleCanvas,
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: onToggleCanvas,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(
+                    color: WicaraColors.secondary,
+                    width: 1.4,
+                  ),
+                  foregroundColor: WicaraColors.secondary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: Icon(
+                  isCanvasExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.draw_outlined,
+                ),
+                label: Text(
+                  isCanvasExpanded ? 'Collapse Canvas' : 'Show Canvas',
+                ),
+              ),
             ),
-            const SizedBox(height: 16),
-            FishboneCanvas(
-              isExpanded: isCanvasExpanded,
-              onToggleExpanded: onToggleCanvas,
-            ),
+            if (isCanvasExpanded) ...[
+              const SizedBox(height: 16),
+              FishboneCanvas(onOpenLargePanel: onOpenLargeCanvas),
+            ],
             const SizedBox(height: 35),
             _ReasoningInput(
               controller: controller,
@@ -442,7 +513,7 @@ class _ReasoningStage extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: WicaraColors.muted,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -471,14 +542,14 @@ class _ResultStage extends StatelessWidget {
     final state =
         result ??
         const KnowledgeState(
-          skill: 'Root Cause Analysis',
+          skill: 'Missing prerequisite: causal drivers',
           gapLabel: 'GAP',
           message:
-              "You're close - review key frameworks\nand try targeted practice.",
+              'The gap looks like choosing a tool before naming the defect driver, evidence, and likely cause chain.',
           pathTitle: 'Personalized path generated',
           pathMeta: '12-15 min   •   3 skills',
           pathDescription:
-              'Adaptive lessons and practice\nfocused on your gaps.',
+              'Start with prerequisites, then practice root-cause questions.',
         );
 
     return SingleChildScrollView(
@@ -488,10 +559,6 @@ class _ResultStage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Align(
-              alignment: Alignment.centerRight,
-              child: LanguageChip(),
-            ),
             const SizedBox(height: 78),
             Text(
               'Your knowledge state',
@@ -504,22 +571,17 @@ class _ResultStage extends StatelessWidget {
               'Based on your responses and reasoning.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: WicaraColors.muted,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 38),
-            KnowledgeStateCard(
-              title: state.skill,
-              message: state.message,
-              badge: state.gapLabel,
-              icon: Icons.auto_awesome_outlined,
-            ),
+            _KnowledgeGapDiagnosisCard(gapLabel: state.gapLabel),
             const SizedBox(height: 37),
             Text(
               "What's next",
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontSize: 16,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 18),
@@ -528,7 +590,10 @@ class _ResultStage extends StatelessWidget {
               message: '${state.pathMeta}\n${state.pathDescription}',
               badge: '',
               icon: Icons.center_focus_strong_outlined,
-              height: 137,
+              iconColor: WicaraColors.secondaryDeep,
+              iconBackgroundColor: WicaraColors.secondarySoft,
+              height: 116,
+              showChevron: false,
             ),
             const SizedBox(height: 32),
             GradientButton(label: 'Continue to my path', onPressed: onContinue),
@@ -538,7 +603,7 @@ class _ResultStage extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: WicaraColors.softMuted,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -546,6 +611,208 @@ class _ResultStage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _KnowledgeGapDiagnosisCard extends StatelessWidget {
+  const _KnowledgeGapDiagnosisCard({required this.gapLabel});
+
+  final String gapLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    const gaps = [
+      _GapItem(
+        title: 'Defect driver identification',
+        description:
+            'Name the process variable that may be creating the new defects before choosing a fix.',
+        severity: 'High importance',
+        color: WicaraColors.accentCoral,
+      ),
+      _GapItem(
+        title: 'Evidence before intervention',
+        description:
+            'Compare defect samples, timing, and process changes before increasing automation or quotas.',
+        severity: 'Medium importance',
+        color: WicaraColors.secondary,
+      ),
+      _GapItem(
+        title: 'Cause-chain reasoning',
+        description:
+            'Connect the shorter cycle time to possible failure points instead of treating defects as isolated.',
+        severity: 'Medium importance',
+        color: WicaraColors.primaryDeep,
+      ),
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: WicaraColors.line, width: 1.25),
+        boxShadow: [
+          BoxShadow(
+            color: WicaraColors.shadowBlue.withValues(alpha: 0.13),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: WicaraColors.glowPeach,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_outlined,
+                  color: WicaraColors.accentCoral,
+                  size: 25,
+                ),
+              ),
+              const SizedBox(width: 17),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Missing prerequisite gaps',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF6E6),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Text(
+                        gapLabel,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFFC28A35),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          for (var i = 0; i < gaps.length; i++) ...[
+            _GapDiagnosisRow(index: i + 1, gap: gaps[i]),
+            if (i != gaps.length - 1) const SizedBox(height: 13),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _GapDiagnosisRow extends StatelessWidget {
+  const _GapDiagnosisRow({required this.index, required this.gap});
+
+  final int index;
+  final _GapItem gap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 27,
+          height: 27,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: gap.color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Text(
+            '$index',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: gap.color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                gap.title,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: WicaraColors.text,
+                  fontWeight: FontWeight.w600,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                gap.description,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: WicaraColors.muted,
+                  fontWeight: FontWeight.w600,
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: gap.color.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  gap.severity,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: gap.color,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _GapItem {
+  const _GapItem({
+    required this.title,
+    required this.description,
+    required this.severity,
+    required this.color,
+  });
+
+  final String title;
+  final String description;
+  final String severity;
+  final Color color;
 }
 
 class _AssessmentHeader extends StatelessWidget {
@@ -588,7 +855,7 @@ class _SlimProgress extends StatelessWidget {
       child: LinearProgressIndicator(
         value: value,
         minHeight: 5,
-        color: WicaraColors.periwinkle,
+        color: WicaraColors.secondary,
         backgroundColor: WicaraColors.line,
       ),
     );
@@ -605,7 +872,7 @@ class _AssessmentFooter extends StatelessWidget {
       children: [
         const Icon(
           Icons.insights_rounded,
-          color: WicaraColors.periwinkle,
+          color: WicaraColors.secondary,
           size: 19,
         ),
         const SizedBox(width: 8),
@@ -616,7 +883,7 @@ class _AssessmentFooter extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: WicaraColors.softMuted,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -637,19 +904,11 @@ class _ChatBubble extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 250),
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
-        gradient: isUser
-            ? LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  WicaraColors.lavender.withValues(alpha: 0.62),
-                  WicaraColors.periwinkle.withValues(alpha: 0.28),
-                ],
-              )
-            : null,
-        color: isUser ? null : Colors.white,
+        color: isUser ? WicaraColors.secondarySoft : Colors.white,
         borderRadius: BorderRadius.circular(15),
-        border: isUser ? null : Border.all(color: WicaraColors.line),
+        border: Border.all(
+          color: isUser ? WicaraColors.secondaryLight : WicaraColors.line,
+        ),
         boxShadow: [
           BoxShadow(
             color: WicaraColors.shadowBlue.withValues(alpha: 0.18),
@@ -662,103 +921,8 @@ class _ChatBubble extends StatelessWidget {
         text,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: isUser ? WicaraColors.text : WicaraColors.muted,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w600,
           height: 1.35,
-        ),
-      ),
-    );
-  }
-}
-
-class _ReasoningTabs extends StatelessWidget {
-  const _ReasoningTabs({
-    required this.isCanvasExpanded,
-    required this.onToggleCanvas,
-  });
-
-  final bool isCanvasExpanded;
-  final VoidCallback onToggleCanvas;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            height: 48,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5F6FB),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _TabButton(
-                    label: 'Chat',
-                    isActive: !isCanvasExpanded,
-                    onTap: onToggleCanvas,
-                  ),
-                ),
-                Expanded(
-                  child: _TabButton(
-                    label: 'Canvas',
-                    isActive: isCanvasExpanded,
-                    onTap: onToggleCanvas,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 9),
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: WicaraColors.line),
-          ),
-          child: const Icon(Icons.more_horiz_rounded, color: WicaraColors.text),
-        ),
-      ],
-    );
-  }
-}
-
-class _TabButton extends StatelessWidget {
-  const _TabButton({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: isActive ? null : onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          margin: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0xFFEDEEFF) : Colors.transparent,
-            borderRadius: BorderRadius.circular(9),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: isActive ? WicaraColors.periwinkle : WicaraColors.muted,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
         ),
       ),
     );
@@ -795,11 +959,17 @@ class _ReasoningInput extends StatelessWidget {
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(13),
-                borderSide: const BorderSide(color: WicaraColors.line),
+                borderSide: const BorderSide(
+                  color: WicaraColors.secondaryLight,
+                  width: 1.4,
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(13),
-                borderSide: const BorderSide(color: WicaraColors.periwinkle),
+                borderSide: const BorderSide(
+                  color: WicaraColors.secondary,
+                  width: 1.7,
+                ),
               ),
             ),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -813,11 +983,11 @@ class _ReasoningInput extends StatelessWidget {
           width: 53,
           height: 53,
           decoration: BoxDecoration(
-            gradient: WicaraColors.primaryGradient,
+            color: WicaraColors.secondary,
             borderRadius: BorderRadius.circular(27),
             boxShadow: [
               BoxShadow(
-                color: WicaraColors.periwinkle.withValues(alpha: 0.22),
+                color: WicaraColors.secondary.withValues(alpha: 0.24),
                 blurRadius: 16,
                 offset: const Offset(0, 9),
               ),
