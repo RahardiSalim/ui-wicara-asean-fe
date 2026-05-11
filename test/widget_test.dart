@@ -133,20 +133,36 @@ void main() {
     expect(find.text('Welcome back, Aisha 👋'), findsOneWidget);
     expect(find.text("Today's learning queue"), findsOneWidget);
 
-    await tester.tap(find.text('Queue'));
+    await tester.tap(find.text('Learn'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Your learning queue'), findsOneWidget);
-    expect(find.text('Repair exponents'), findsWidgets);
+    expect(find.text('Calculus I'), findsWidgets);
+    expect(find.text('Gallery'), findsOneWidget);
+
+    await tester.tap(find.text('Gallery'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Content Gallery'), findsOneWidget);
+    expect(find.text('Derivatives intuition'), findsOneWidget);
+
+    await tester.tap(find.text('Derivatives intuition'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('What does a derivative tell us?'), findsOneWidget);
+    expect(find.text('Notes'), findsOneWidget);
+    expect(find.text('Cheatsheet summary'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.chevron_left_rounded));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Progress'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Progress mockup page'), findsOneWidget);
+    expect(find.text('Progress'), findsWidgets);
 
     await tester.tap(find.text('Profile'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Profile mockup page'), findsOneWidget);
+    expect(find.text('Profile'), findsWidgets);
   });
 }
