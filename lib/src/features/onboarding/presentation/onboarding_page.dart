@@ -38,28 +38,28 @@ class _OnboardingPageState extends State<OnboardingPage> {
       title: 'Math',
       description: 'Algebra, Geometry, Calculus',
       icon: Icons.calculate_outlined,
-      tint: WicaraColors.periwinkle,
+      tint: WicaraColors.math,
       isSelected: true,
     ),
     const _SubjectChoice(
       title: 'Physics',
       description: 'Mechanics, Waves, Thermo',
       icon: Icons.bolt_outlined,
-      tint: WicaraColors.periwinkle,
+      tint: WicaraColors.physics,
       isSelected: true,
     ),
     const _SubjectChoice(
       title: 'Chemistry',
       description: 'Stoichiometry, Reactions',
       icon: Icons.science_outlined,
-      tint: WicaraColors.periwinkle,
+      tint: WicaraColors.chemistry,
       isSelected: true,
     ),
     const _SubjectChoice(
       title: 'Biology',
       description: 'Cell, Genetics, Ecology',
       icon: Icons.eco_outlined,
-      tint: Color(0xFF7CC5A5),
+      tint: WicaraColors.biology,
       isSelected: true,
     ),
   ];
@@ -88,6 +88,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
         setState(() => _isSaving = false);
       }
     }
+  }
+
+  void _previousStep() {
+    if (_currentStep == 1) {
+      return;
+    }
+    setState(() => _currentStep -= 1);
   }
 
   OnboardingProfile get _profile {
@@ -223,7 +230,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
           color: WicaraColors.softMuted,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w600,
         ),
       ),
       const SizedBox(height: 42),
@@ -233,6 +240,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   List<Widget> _subjectsStep(BuildContext context) {
     return [
+      _OnboardingBackButton(onPressed: _previousStep),
+      const SizedBox(height: 22),
       const _OnboardingTitle(
         title: 'Choose your subjects',
         subtitle:
@@ -261,7 +270,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
           color: WicaraColors.softMuted,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w600,
         ),
       ),
     ];
@@ -269,6 +278,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   List<Widget> _preferencesStep(BuildContext context) {
     return [
+      _OnboardingBackButton(onPressed: _previousStep),
+      const SizedBox(height: 22),
       const _OnboardingTitle(
         title: 'How would you like to learn?',
         subtitle: 'Pick your preferences. You can change\nthem anytime.',
@@ -301,10 +312,32 @@ class _OnboardingPageState extends State<OnboardingPage> {
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
           color: WicaraColors.softMuted,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w600,
         ),
       ),
     ];
+  }
+}
+
+class _OnboardingBackButton extends StatelessWidget {
+  const _OnboardingBackButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: IconButton(
+        tooltip: 'Back',
+        onPressed: onPressed,
+        icon: const Icon(Icons.chevron_left_rounded),
+        iconSize: 32,
+        color: WicaraColors.ink,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+      ),
+    );
   }
 }
 
@@ -330,7 +363,7 @@ class _OnboardingTitle extends StatelessWidget {
           subtitle,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: WicaraColors.muted,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w600,
             height: 1.35,
           ),
         ),

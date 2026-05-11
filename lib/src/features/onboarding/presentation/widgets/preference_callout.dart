@@ -11,7 +11,7 @@ class PreferenceCallout extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F3FF),
+        color: WicaraColors.glowLemon,
         borderRadius: BorderRadius.circular(13),
       ),
       child: Row(
@@ -21,12 +21,12 @@ class PreferenceCallout extends StatelessWidget {
             width: 25,
             height: 25,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.58),
+              color: Colors.white.withValues(alpha: 0.78),
               borderRadius: BorderRadius.circular(13),
             ),
             child: const Icon(
               Icons.info_outline_rounded,
-              color: WicaraColors.periwinkle,
+              color: WicaraColors.accentAmber,
               size: 17,
             ),
           ),
@@ -35,8 +35,8 @@ class PreferenceCallout extends StatelessWidget {
             child: Text(
               'WICARA adapts to you, your pace, your style,\nand your goals.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: WicaraColors.periwinkle,
-                fontWeight: FontWeight.w900,
+                color: WicaraColors.ink,
+                fontWeight: FontWeight.w400,
                 height: 1.25,
               ),
             ),

@@ -40,8 +40,7 @@ class _StepCircle extends StatelessWidget {
       width: 27,
       height: 27,
       decoration: BoxDecoration(
-        gradient: isActive ? WicaraColors.primaryGradient : null,
-        color: isActive ? null : Colors.white,
+        color: isActive ? WicaraColors.secondary : Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isActive ? Colors.transparent : WicaraColors.line,
@@ -50,7 +49,7 @@ class _StepCircle extends StatelessWidget {
         boxShadow: [
           if (isActive)
             BoxShadow(
-              color: WicaraColors.periwinkle.withValues(alpha: 0.22),
+              color: WicaraColors.secondary.withValues(alpha: 0.24),
               blurRadius: 14,
               offset: const Offset(0, 7),
             ),
@@ -62,7 +61,7 @@ class _StepCircle extends StatelessWidget {
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
           color: isActive ? Colors.white : WicaraColors.softMuted,
           fontSize: 12,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

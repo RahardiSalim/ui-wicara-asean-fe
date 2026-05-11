@@ -27,7 +27,7 @@ class OnboardingSelectField extends StatelessWidget {
           label,
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
             color: WicaraColors.text,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(height: 10),
@@ -55,8 +55,8 @@ class OnboardingSelectField extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: WicaraColors.muted,
-                        fontWeight: FontWeight.w800,
+                        color: WicaraColors.text,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ),

@@ -65,7 +65,7 @@ class SubjectTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontSize: 14,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -75,7 +75,7 @@ class SubjectTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: WicaraColors.muted,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
@@ -107,13 +107,12 @@ class _WicaraToggle extends StatelessWidget {
         height: 27,
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
-          gradient: value ? WicaraColors.primaryGradient : null,
-          color: value ? null : WicaraColors.line,
+          color: value ? WicaraColors.secondary : WicaraColors.line,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             if (value)
               BoxShadow(
-                color: WicaraColors.periwinkle.withValues(alpha: 0.22),
+                color: WicaraColors.secondary.withValues(alpha: 0.22),
                 blurRadius: 10,
                 offset: const Offset(0, 5),
               ),
