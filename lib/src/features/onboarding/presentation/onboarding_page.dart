@@ -77,7 +77,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pushReplacementNamed(AppRoutes.pretest);
+      Navigator.of(context).pushReplacementNamed(AppRoutes.learningGoal);
     } on OnboardingException catch (error) {
       if (!mounted) {
         return;

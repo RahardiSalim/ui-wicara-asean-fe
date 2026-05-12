@@ -111,6 +111,18 @@ void main() {
     await tester.tap(find.text('Continue to adaptive pretest'));
     await tester.pumpAndSettle();
 
+    expect(find.text('What would you like to learn?'), findsOneWidget);
+    expect(find.text('Generate Pretest'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'Calculus I');
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Generate Pretest'));
+    await tester.tap(find.text('Generate Pretest'));
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(find.text('Pretest generated complete!'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 900));
+    await tester.pumpAndSettle();
+
     expect(find.text('Knowledge Space Theory'), findsWidgets);
     expect(find.text('Submit answer'), findsOneWidget);
 
@@ -165,6 +177,25 @@ void main() {
     expect(find.text('Welcome back, Aisha 👋'), findsOneWidget);
     expect(find.text("Today's learning queue"), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Continue session'));
+    await tester.tap(find.text('Continue session'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Workspace Modules'), findsOneWidget);
+    expect(find.text('Generate video'), findsOneWidget);
+    expect(find.byType(FishboneCanvas), findsOneWidget);
+
+    await tester.tap(find.text('Generate video'));
+    await tester.pump(const Duration(milliseconds: 1500));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Saved generated video'), findsOneWidget);
+    expect(find.text('Sudden check'), findsOneWidget);
+
+    await tester.ensureVisible(find.byIcon(Icons.chevron_left_rounded).first);
+    await tester.tap(find.byIcon(Icons.chevron_left_rounded).first);
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('Learn'));
     await tester.pumpAndSettle();
 
@@ -191,6 +222,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Progress'), findsWidgets);
+
+    await tester.tap(find.text('Knowledge Map'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mathematics Prerequisite Map'), findsOneWidget);
+    expect(find.text('Calculus 3'), findsOneWidget);
 
     await tester.tap(find.text('Profile'));
     await tester.pumpAndSettle();
