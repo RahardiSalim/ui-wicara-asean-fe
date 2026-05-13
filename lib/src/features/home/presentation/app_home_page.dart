@@ -148,9 +148,9 @@ class _AppHomePageState extends State<AppHomePage> {
                   children: [
                     Positioned.fill(child: _animatedTabView(constraints)),
                     Positioned(
-                      left: 28,
-                      right: 28,
-                      bottom: 18,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 180),
                         child: _showEvaluationResult || _showDailyEvaluation
@@ -2800,17 +2800,33 @@ class _ShortcutBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 74,
-      padding: const EdgeInsets.symmetric(horizontal: 9),
+      height: 78,
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: WicaraColors.line, width: 1.3),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            WicaraColors.primarySoft,
+            WicaraColors.secondarySoft,
+          ],
+        ),
+        borderRadius: BorderRadius.zero,
+        border: Border.all(
+          color: WicaraColors.primaryLight.withValues(alpha: 0.95),
+          width: 1.2,
+        ),
         boxShadow: [
           BoxShadow(
-            color: WicaraColors.shadowBlue.withValues(alpha: 0.22),
-            blurRadius: 22,
-            offset: const Offset(0, 12),
+            color: WicaraColors.secondaryDeep.withValues(alpha: 0.14),
+            blurRadius: 24,
+            offset: const Offset(0, -8),
+          ),
+          BoxShadow(
+            color: WicaraColors.shadowBlue.withValues(alpha: 0.42),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -2868,28 +2884,60 @@ class _ShortcutItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isSelected = tab == selectedTab;
-    final color = isSelected ? WicaraColors.secondary : WicaraColors.muted;
+    final activeColor = WicaraColors.secondaryDeep;
+    final inactiveColor = WicaraColors.muted;
 
     return Expanded(
       child: InkWell(
         onTap: () => onSelected(tab),
-        borderRadius: BorderRadius.circular(12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: color,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
+        borderRadius: BorderRadius.circular(24),
+        splashColor: WicaraColors.secondary.withValues(alpha: 0.10),
+        highlightColor: WicaraColors.secondarySoft.withValues(alpha: 0.38),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 170),
+          curve: Curves.easeOutCubic,
+          height: 60,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          decoration: BoxDecoration(
+            color: isSelected ? activeColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isSelected
+                  ? WicaraColors.secondaryDeep
+                  : Colors.transparent,
+              width: 1.1,
             ),
-          ],
+            boxShadow: [
+              if (isSelected)
+                BoxShadow(
+                  color: WicaraColors.secondaryDeep.withValues(alpha: 0.24),
+                  blurRadius: 18,
+                  offset: const Offset(0, 9),
+                ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.white : inactiveColor,
+                size: isSelected ? 24 : 23,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: isSelected ? Colors.white : inactiveColor,
+                  fontSize: 10,
+                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+                  letterSpacing: -0.1,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
