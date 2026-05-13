@@ -25,4 +25,16 @@ class ApiCurriculumRepository implements CurriculumRepository {
     );
     return KnowledgeMapDto.fromJson(json).toDomain();
   }
+
+  @override
+  Future<CurriculumConceptDetail> fetchConceptDetail({
+    required String conceptCode,
+    String? subject,
+  }) async {
+    final json = await _apiClient.getJson(
+      '/api/v1/knowledge-map/concepts/${Uri.encodeComponent(conceptCode)}',
+      queryParameters: subject == null ? const {} : {'subject': subject},
+    );
+    return ConceptDetailDto.fromJson(json).toDomain();
+  }
 }

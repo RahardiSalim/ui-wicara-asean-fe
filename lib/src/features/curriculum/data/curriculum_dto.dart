@@ -108,9 +108,12 @@ class KnowledgeMapDto {
           CurriculumKnowledgeNode(
             id: node.id,
             label: node.label,
+            description: node.description,
+            gradeBand: node.gradeBand,
             x: node.x,
             y: node.y,
             status: _statusFromBackend(node.status),
+            statusLabel: node.statusLabel,
           ),
       ],
       edges: [
@@ -168,26 +171,51 @@ class KnowledgeMapNodeDto {
   const KnowledgeMapNodeDto({
     required this.id,
     required this.label,
+    required this.description,
+    required this.gradeBand,
     required this.x,
     required this.y,
     required this.status,
+    required this.statusLabel,
   });
+
+  const KnowledgeMapNodeDto.empty()
+    : id = '',
+      label = '',
+      description = '',
+      gradeBand = '',
+      x = 0,
+      y = 0,
+      status = 'ready',
+      statusLabel = 'READY';
 
   factory KnowledgeMapNodeDto.fromJson(Map<String, dynamic> json) {
     return KnowledgeMapNodeDto(
       id: _stringValue(json['id']),
-      label: _stringValue(json['label'], fallback: _stringValue(json['title'])),
+      label: _stringValue(
+        json['label'],
+        fallback: _stringValue(
+          json['title'],
+          fallback: _stringValue(json['label_id']),
+        ),
+      ),
+      description: _stringValue(json['description']),
+      gradeBand: _stringValue(json['grade_band']),
       x: _doubleValue(json['x']),
       y: _doubleValue(json['y']),
       status: _stringValue(json['status'], fallback: 'ready'),
+      statusLabel: _stringValue(json['status_label']),
     );
   }
 
   final String id;
   final String label;
+  final String description;
+  final String gradeBand;
   final double x;
   final double y;
   final String status;
+  final String statusLabel;
 }
 
 class KnowledgeMapEdgeDto {
@@ -195,8 +223,14 @@ class KnowledgeMapEdgeDto {
 
   factory KnowledgeMapEdgeDto.fromJson(Map<String, dynamic> json) {
     return KnowledgeMapEdgeDto(
-      from: _stringValue(json['from']),
-      to: _stringValue(json['to']),
+      from: _stringValue(
+        json['from'],
+        fallback: _stringValue(
+          json['from_node'],
+          fallback: _stringValue(json['from_node_id']),
+        ),
+      ),
+      to: _stringValue(json['to'], fallback: _stringValue(json['to_node_id'])),
     );
   }
 
@@ -204,11 +238,122 @@ class KnowledgeMapEdgeDto {
   final String to;
 }
 
+class ConceptDetailDto {
+  const ConceptDetailDto({
+    required this.concept,
+    required this.masteryConfidence,
+    required this.prerequisites,
+    required this.relatedConcepts,
+    required this.crossSubjectConnections,
+  });
+
+  factory ConceptDetailDto.fromJson(Map<String, dynamic> json) {
+    final concept = json['concept'];
+    return ConceptDetailDto(
+      concept: concept is Map<String, dynamic>
+          ? KnowledgeMapNodeDto.fromJson(concept)
+          : KnowledgeMapNodeDto.empty(),
+      masteryConfidence: _doubleValue(
+        json['mastery_confidence'],
+        fallback: 0.34,
+      ),
+      prerequisites: _relationsFromJson(json['prerequisites']),
+      relatedConcepts: _relationsFromJson(json['related_concepts']),
+      crossSubjectConnections: _relationsFromJson(
+        json['cross_subject_connections'],
+      ),
+    );
+  }
+
+  final KnowledgeMapNodeDto concept;
+  final double masteryConfidence;
+  final List<ConceptRelationDto> prerequisites;
+  final List<ConceptRelationDto> relatedConcepts;
+  final List<ConceptRelationDto> crossSubjectConnections;
+
+  CurriculumConceptDetail toDomain() {
+    return CurriculumConceptDetail(
+      concept: concept.toDomain(),
+      masteryConfidence: masteryConfidence.clamp(0, 1).toDouble(),
+      prerequisites: [
+        for (final relation in prerequisites) relation.toDomain(),
+      ],
+      relatedConcepts: [
+        for (final relation in relatedConcepts) relation.toDomain(),
+      ],
+      crossSubjectConnections: [
+        for (final relation in crossSubjectConnections) relation.toDomain(),
+      ],
+    );
+  }
+}
+
+class ConceptRelationDto {
+  const ConceptRelationDto({
+    required this.id,
+    required this.label,
+    required this.subjectName,
+    required this.status,
+    required this.statusLabel,
+  });
+
+  factory ConceptRelationDto.fromJson(Map<String, dynamic> json) {
+    return ConceptRelationDto(
+      id: _stringValue(json['id']),
+      label: _stringValue(json['label']),
+      subjectName: _stringValue(json['subject_name']),
+      status: _stringValue(json['status'], fallback: 'ready'),
+      statusLabel: _stringValue(json['status_label']),
+    );
+  }
+
+  final String id;
+  final String label;
+  final String subjectName;
+  final String status;
+  final String statusLabel;
+
+  CurriculumConceptRelation toDomain() {
+    return CurriculumConceptRelation(
+      id: id,
+      label: label,
+      subjectName: subjectName,
+      status: _statusFromBackend(status),
+      statusLabel: statusLabel,
+    );
+  }
+}
+
+extension on KnowledgeMapNodeDto {
+  CurriculumKnowledgeNode toDomain() {
+    return CurriculumKnowledgeNode(
+      id: id,
+      label: label,
+      description: description,
+      gradeBand: gradeBand,
+      x: x,
+      y: y,
+      status: _statusFromBackend(status),
+      statusLabel: statusLabel,
+    );
+  }
+}
+
+List<ConceptRelationDto> _relationsFromJson(Object? value) {
+  return value is List
+      ? value
+            .whereType<Map<String, dynamic>>()
+            .map(ConceptRelationDto.fromJson)
+            .toList()
+      : const [];
+}
+
 CurriculumNodeStatus _statusFromBackend(String value) {
   return switch (value.toLowerCase()) {
     'mastered' => CurriculumNodeStatus.mastered,
     'active' || 'in_progress' => CurriculumNodeStatus.active,
     'review' || 'review_due' => CurriculumNodeStatus.review,
+    'gap' => CurriculumNodeStatus.gap,
     'locked' => CurriculumNodeStatus.locked,
     _ => CurriculumNodeStatus.ready,
   };

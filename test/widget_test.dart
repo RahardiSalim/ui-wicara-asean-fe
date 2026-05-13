@@ -236,6 +236,16 @@ void main() {
     expect(find.text('Mathematics Prerequisite Map'), findsOneWidget);
     expect(find.text('Calculus 3'), findsOneWidget);
 
+    await tester.tap(find.text('Calculus 3').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mastery confidence'), findsOneWidget);
+    expect(find.text('Prerequisites'), findsOneWidget);
+    expect(find.text('Related concepts'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.close_rounded).last);
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('Profile'));
     await tester.pumpAndSettle();
 
@@ -351,6 +361,14 @@ class _FailingCurriculumRepository implements CurriculumRepository {
 
   @override
   Future<CurriculumKnowledgeMap> fetchKnowledgeMap({required String subject}) {
+    return Future.error(Exception('Use static fallback in widget tests.'));
+  }
+
+  @override
+  Future<CurriculumConceptDetail> fetchConceptDetail({
+    required String conceptCode,
+    String? subject,
+  }) {
     return Future.error(Exception('Use static fallback in widget tests.'));
   }
 

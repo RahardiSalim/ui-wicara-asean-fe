@@ -41,16 +41,22 @@ class CurriculumKnowledgeNode {
   const CurriculumKnowledgeNode({
     required this.id,
     required this.label,
+    required this.description,
+    required this.gradeBand,
     required this.x,
     required this.y,
     required this.status,
+    required this.statusLabel,
   });
 
   final String id;
   final String label;
+  final String description;
+  final String gradeBand;
   final double x;
   final double y;
   final CurriculumNodeStatus status;
+  final String statusLabel;
 }
 
 class CurriculumKnowledgeEdge {
@@ -60,4 +66,36 @@ class CurriculumKnowledgeEdge {
   final String to;
 }
 
-enum CurriculumNodeStatus { mastered, active, review, ready, locked }
+class CurriculumConceptDetail {
+  const CurriculumConceptDetail({
+    required this.concept,
+    required this.masteryConfidence,
+    required this.prerequisites,
+    required this.relatedConcepts,
+    required this.crossSubjectConnections,
+  });
+
+  final CurriculumKnowledgeNode concept;
+  final double masteryConfidence;
+  final List<CurriculumConceptRelation> prerequisites;
+  final List<CurriculumConceptRelation> relatedConcepts;
+  final List<CurriculumConceptRelation> crossSubjectConnections;
+}
+
+class CurriculumConceptRelation {
+  const CurriculumConceptRelation({
+    required this.id,
+    required this.label,
+    required this.subjectName,
+    required this.status,
+    required this.statusLabel,
+  });
+
+  final String id;
+  final String label;
+  final String subjectName;
+  final CurriculumNodeStatus status;
+  final String statusLabel;
+}
+
+enum CurriculumNodeStatus { mastered, active, review, ready, gap, locked }
