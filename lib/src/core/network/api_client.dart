@@ -38,6 +38,38 @@ class ApiClient {
 
     return decoded;
   }
+
+  Future<Map<String, dynamic>> postJson(
+    String path, {
+    Map<String, String>? queryParameters,
+    Map<String, dynamic>? body,
+    Map<String, String>? headers,
+  }) async {
+    final uri = Uri.parse(
+      baseUrl,
+    ).replace(path: path, queryParameters: queryParameters);
+    final mergedHeaders = <String, String>{
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      ...?headers,
+    };
+    final response = await _httpClient
+        .post(uri, headers: mergedHeaders, body: jsonEncode(body ?? const {}))
+        .timeout(const Duration(seconds: 8));
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiClientException(
+        'POST $uri failed with status ${response.statusCode}: ${response.body}',
+      );
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw const ApiClientException('Expected a JSON object response.');
+    }
+
+    return decoded;
+  }
 }
 
 class ApiClientException implements Exception {

@@ -2,17 +2,24 @@ import 'package:flutter/material.dart';
 
 import 'src/app/wicara_app.dart';
 import 'src/core/network/api_client.dart';
-import 'src/features/auth/data/mock_auth_repository.dart';
+import 'src/features/auth/data/api_auth_repository.dart';
 import 'src/features/curriculum/data/api_curriculum_repository.dart';
 import 'src/features/onboarding/data/mock_onboarding_repository.dart';
 import 'src/features/pretest/data/mock_pretest_repository.dart';
+
+const _googleWebClientId = String.fromEnvironment(
+  'WICARA_GOOGLE_WEB_CLIENT_ID',
+);
 
 void main() {
   final apiClient = ApiClient(baseUrl: ApiClient.defaultBaseUrl);
 
   runApp(
     WicaraApp(
-      authRepository: MockAuthRepository(),
+      authRepository: ApiAuthRepository(
+        apiClient: apiClient,
+        googleWebClientId: _googleWebClientId,
+      ),
       curriculumRepository: ApiCurriculumRepository(apiClient: apiClient),
       onboardingRepository: MockOnboardingRepository(),
       pretestRepository: MockPretestRepository(),
