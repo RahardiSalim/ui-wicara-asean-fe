@@ -1,3 +1,4 @@
+import '../../../core/utils/learning_level_resolver.dart';
 import '../../pretest/domain/pretest_models.dart';
 import '../../workspace/domain/workspace_models.dart';
 
@@ -88,7 +89,23 @@ class HomeSnapshot {
         }
       }
     }
-    return null;
+
+    if (isElementaryLevel(
+      educationLevel: educationLevel,
+      gradeLevel: gradeLevel,
+    )) {
+      return const WorkspaceRouteArguments(
+        trackId: 'demo-track-sd',
+        moduleId: 'demo-module-perkalian',
+        moduleTitle: 'Perkalian',
+      );
+    }
+
+    return const WorkspaceRouteArguments(
+      trackId: 'demo-track-smp',
+      moduleId: 'demo-module-aljabar',
+      moduleTitle: 'Aljabar dan pembuktian Al-Khawarizmi',
+    );
   }
 }
 

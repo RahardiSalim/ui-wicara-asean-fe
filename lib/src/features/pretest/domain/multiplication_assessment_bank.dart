@@ -1,3 +1,4 @@
+import '../../../core/utils/learning_level_resolver.dart';
 import 'pretest_models.dart';
 
 enum HardcodedAssessmentKind { pretest, posttest }
@@ -35,6 +36,7 @@ class HardcodedAssessmentPack {
     required this.workspaceIntroLine2,
     required this.workspaceExplanation,
     required this.workspaceVideoTitle,
+    required this.workspaceVideoUrl,
     required this.workspaceQuizQuestion,
     required this.workspaceQuizOptions,
     required this.workspaceQuizCorrectAnswer,
@@ -59,6 +61,7 @@ class HardcodedAssessmentPack {
   final String workspaceIntroLine2;
   final String workspaceExplanation;
   final String workspaceVideoTitle;
+  final String workspaceVideoUrl;
   final String workspaceQuizQuestion;
   final List<String> workspaceQuizOptions;
   final String workspaceQuizCorrectAnswer;
@@ -102,16 +105,10 @@ class HardcodedAssessmentBank {
     required String educationLevel,
     required String gradeLevel,
   }) {
-    final normalizedEducation = educationLevel.trim().toLowerCase();
-    final normalizedGrade = gradeLevel.trim().toLowerCase();
-    final parsedGrade = int.tryParse(
-      normalizedGrade.replaceAll(RegExp(r'[^0-9]'), ''),
-    );
-
-    if (normalizedEducation.contains('elementary') ||
-        normalizedEducation == 'sd' ||
-        normalizedEducation.contains('sekolah dasar') ||
-        (parsedGrade != null && parsedGrade <= 6)) {
+    if (isElementaryLevel(
+      educationLevel: educationLevel,
+      gradeLevel: gradeLevel,
+    )) {
       return multiplication;
     }
 
@@ -355,6 +352,8 @@ class HardcodedAssessmentBank {
     workspaceExplanation:
         'Perkalian adalah cara cepat untuk menjumlahkan kelompok yang sama besar. Contohnya 4 x 3 berarti ada 4 kelompok, setiap kelompok berisi 3 benda. Jadi 4 x 3 sama dengan 3 + 3 + 3 + 3, hasilnya 12.',
     workspaceVideoTitle: 'Perkalian dari kelompok benda',
+    workspaceVideoUrl:
+        'https://gwbqhirtkgkghnpahtgt.supabase.co/storage/v1/object/public/video/perkalian.mp4',
     workspaceQuizQuestion:
         'Jika ada 4 kelompok dan setiap kelompok berisi 3 benda, berapa jumlah semua benda?',
     workspaceQuizOptions: ['7', '12', '16'],
@@ -627,10 +626,12 @@ class HardcodedAssessmentBank {
     workspaceIntroLine1:
         'Oke, sebelum mulai aljabar persamaan kuadrat, kamu mau penjelasan atau video singkat?',
     workspaceIntroLine2:
-        'Kita fokus ke cara mencari x1 dan x2 lewat faktorisasi, bukan sekadar hafal rumus.',
+        'Kita fokus ke aljabar dan pembuktian Al-Khawarizmi, jadi kamu paham asal konsepnya.',
     workspaceExplanation:
-        'Untuk x^2 + 7x + 12 = 0, cari dua bilangan yang jumlahnya 7 dan hasil kalinya 12, yaitu 3 dan 4. Maka bentuknya (x + 3)(x + 4) = 0. Karena hasil kali nol, salah satu faktor harus nol, jadi x = -3 atau x = -4.',
-    workspaceVideoTitle: 'Mencari x1 dan x2 dengan faktorisasi',
+        'Al-Khawarizmi menunjukkan ide aljabar dengan menyusun ulang bentuk kuadrat menjadi persegi sempurna. Dari sana, kita bisa melihat kenapa persamaan kuadrat bisa diselesaikan langkah demi langkah, bukan hanya dihafal rumusnya.',
+    workspaceVideoTitle: 'Aljabar dan pembuktian Al-Khawarizmi',
+    workspaceVideoUrl:
+        'https://gwbqhirtkgkghnpahtgt.supabase.co/storage/v1/object/public/video/aljabar.mp4',
     workspaceQuizQuestion:
         'Jika (x + 3)(x + 4) = 0, nilai x yang memenuhi adalah ...',
     workspaceQuizOptions: [

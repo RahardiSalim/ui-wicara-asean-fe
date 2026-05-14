@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/wicara_colors.dart';
+import '../../../core/widgets/hardcoded_video_preview.dart';
 import '../../onboarding/application/onboarding_controller.dart';
 import '../../onboarding/domain/onboarding_copy.dart';
 import '../../pretest/domain/multiplication_assessment_bank.dart';
@@ -136,9 +137,10 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
       setState(() => _contentMode = _WorkspaceContentMode.videoReady);
       _appendWorkspaceEvent(
         eventType: 'media_generated',
-        metadata: const {
+        metadata: {
           'generation_mode': 'simulated_mobile_timer',
           'duration_ms': 1350,
+          'video_url': _assessmentPack.workspaceVideoUrl,
         },
       );
       _scrollToBottom();
@@ -582,6 +584,7 @@ class _WorkspaceChatPanel extends StatelessWidget {
             const SizedBox(height: 10),
             _GeneratedWorkspaceVideoCard(
               title: assessmentPack.workspaceVideoTitle,
+              videoUrl: assessmentPack.workspaceVideoUrl,
             ),
           ],
           if (contentMode == _WorkspaceContentMode.explanation ||
@@ -1143,9 +1146,13 @@ class _WorkspaceVideoLoadingCard extends StatelessWidget {
 }
 
 class _GeneratedWorkspaceVideoCard extends StatelessWidget {
-  const _GeneratedWorkspaceVideoCard({required this.title});
+  const _GeneratedWorkspaceVideoCard({
+    required this.title,
+    required this.videoUrl,
+  });
 
   final String title;
+  final String videoUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -1167,35 +1174,12 @@ class _GeneratedWorkspaceVideoCard extends StatelessWidget {
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(14),
                 ),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CustomPaint(painter: _WorkspaceVideoPreviewPainter()),
-                    Center(
-                      child: Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: WicaraColors.shadowBlue.withValues(
-                                alpha: 0.32,
-                              ),
-                              blurRadius: 18,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.play_arrow_rounded,
-                          color: WicaraColors.secondary,
-                          size: 30,
-                        ),
-                      ),
-                    ),
-                  ],
+                child: HardcodedVideoPreview(
+                  videoUrl: videoUrl,
+                  title: title,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(14),
+                  ),
                 ),
               ),
             ),
@@ -1214,9 +1198,9 @@ class _GeneratedWorkspaceVideoCard extends StatelessWidget {
                   const SizedBox(height: 7),
                   Row(
                     children: [
-                      const _GeneratedVideoChip('04:52'),
+                      const _GeneratedVideoChip('Tap to open'),
                       const SizedBox(width: 7),
-                      const _GeneratedVideoChip('AI video'),
+                      const _GeneratedVideoChip('Zoom + landscape'),
                       const Spacer(),
                       Icon(
                         Icons.check_circle_rounded,
@@ -1676,100 +1660,4 @@ class _WorkspacePanel extends StatelessWidget {
       child: child,
     );
   }
-}
-
-class _WorkspaceVideoPreviewPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final background = Paint()
-      ..shader = const LinearGradient(
-        colors: [Color(0xFFEEF6FF), Color(0xFFF7F2FF)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(Offset.zero & size);
-    canvas.drawRect(Offset.zero & size, background);
-
-    final axisPaint = Paint()
-      ..color = WicaraColors.primaryDeep.withValues(alpha: 0.45)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-    final graphRect = Rect.fromLTWH(
-      size.width * 0.13,
-      size.height * 0.18,
-      size.width * 0.74,
-      size.height * 0.62,
-    );
-    canvas.drawLine(
-      Offset(graphRect.left, graphRect.center.dy),
-      Offset(graphRect.right, graphRect.center.dy),
-      axisPaint,
-    );
-    canvas.drawLine(
-      Offset(graphRect.left + graphRect.width * 0.32, graphRect.top),
-      Offset(graphRect.left + graphRect.width * 0.32, graphRect.bottom),
-      axisPaint,
-    );
-
-    final curvePaint = Paint()
-      ..color = WicaraColors.secondary
-      ..strokeWidth = 5
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-    final curve = Path()
-      ..moveTo(graphRect.left + 8, graphRect.bottom - 8)
-      ..cubicTo(
-        graphRect.left + graphRect.width * 0.27,
-        graphRect.top + 14,
-        graphRect.left + graphRect.width * 0.48,
-        graphRect.top + 12,
-        graphRect.left + graphRect.width * 0.62,
-        graphRect.center.dy,
-      )
-      ..cubicTo(
-        graphRect.left + graphRect.width * 0.73,
-        graphRect.bottom - 5,
-        graphRect.right - 18,
-        graphRect.bottom - 20,
-        graphRect.right - 8,
-        graphRect.top + 18,
-      );
-    canvas.drawPath(curve, curvePaint);
-
-    final dotPaint = Paint()..color = WicaraColors.accentCoral;
-    canvas.drawCircle(
-      Offset(graphRect.left + graphRect.width * 0.61, graphRect.center.dy),
-      6,
-      dotPaint,
-    );
-
-    final tagPaint = Paint()..color = Colors.white.withValues(alpha: 0.86);
-    final tagRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(size.width * 0.08, size.height * 0.08, 86, 27),
-      const Radius.circular(999),
-    );
-    canvas.drawRRect(tagRect, tagPaint);
-
-    final textPainter = TextPainter(
-      text: const TextSpan(
-        text: 'limit = 3',
-        style: TextStyle(
-          color: WicaraColors.primaryDeep,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    textPainter.paint(
-      canvas,
-      Offset(
-        tagRect.outerRect.left + 13,
-        tagRect.outerRect.top +
-            (tagRect.outerRect.height - textPainter.height) / 2,
-      ),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
