@@ -68,10 +68,14 @@ void main() {
     await tester.tap(find.text('Log in').last);
     await tester.pumpAndSettle();
 
-    final reachedHome =
-        find.textContaining('Welcome back').evaluate().isNotEmpty;
-    final reachedOnboarding =
-        find.text("Let's set you up").evaluate().isNotEmpty;
+    final reachedHome = find
+        .textContaining('Welcome back')
+        .evaluate()
+        .isNotEmpty;
+    final reachedOnboarding = find
+        .text("Let's set you up")
+        .evaluate()
+        .isNotEmpty;
     expect(reachedHome || reachedOnboarding, isTrue);
   });
 
@@ -206,6 +210,7 @@ class _FakeHomeRepository implements HomeRepository {
   Future<HomeSnapshot> fetchSnapshot() async {
     return const HomeSnapshot(
       displayName: 'Aisyah Putri',
+      streakDays: 7,
       country: 'Indonesia',
       educationLevel: 'Senior high school',
       gradeLevel: 'Grade 11',

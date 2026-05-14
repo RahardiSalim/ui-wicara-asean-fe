@@ -68,15 +68,21 @@ class AuthController extends ChangeNotifier {
   Future<AuthSession> startDevelopmentSession({
     required AuthRole role,
     String? displayName,
+    bool onboardingCompleted = false,
   }) async {
     final session = AuthSession(
       userId: 'dev-web-learner',
       displayName: _normalizeDisplayName(displayName),
       role: role,
-      onboardingCompleted: false,
+      onboardingCompleted: onboardingCompleted,
       token: 'dev-session-token',
     );
-    await _setSession(session, lastProtectedRoute: AppRoutes.onboarding);
+    await _setSession(
+      session,
+      lastProtectedRoute: onboardingCompleted
+          ? AppRoutes.home
+          : AppRoutes.onboarding,
+    );
     return session;
   }
 
@@ -141,10 +147,7 @@ class AuthController extends ChangeNotifier {
     if (session == null || route == null) {
       return;
     }
-    await _sessionStore.save(
-      session: session,
-      lastProtectedRoute: route,
-    );
+    await _sessionStore.save(session: session, lastProtectedRoute: route);
   }
 
   String _normalizeDisplayName(String? displayName) {

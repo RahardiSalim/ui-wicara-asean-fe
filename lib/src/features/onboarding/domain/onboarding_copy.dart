@@ -37,8 +37,7 @@ class OnboardingCopy {
   String get preferencesSubtitle => isIndonesian
       ? 'Pilih preferensimu. Kamu bisa mengubahnya\nkapan saja.'
       : 'Pick your preferences. You can change\nthem anytime.';
-  String get studyGoalLabel =>
-      isIndonesian ? 'Tujuan belajar' : 'Study goal';
+  String get studyGoalLabel => isIndonesian ? 'Tujuan belajar' : 'Study goal';
   String get studyGoalOptionalLabel =>
       isIndonesian ? 'Tujuan belajar (opsional)' : 'Study goal (optional)';
   String get dailyStudyTimeLabel =>
@@ -68,7 +67,8 @@ class OnboardingCopy {
       isIndonesian ? 'Preferensi' : 'Preferences';
   String get subjectsLabel => isIndonesian ? 'Mata pelajaran' : 'Subjects';
   String get logoutLabel => isIndonesian ? 'Keluar' : 'Log out';
-  String get welcomeBack => isIndonesian ? 'Selamat datang,\n' : 'Welcome back,\n';
+  String get welcomeBack =>
+      isIndonesian ? 'Selamat datang,\n' : 'Welcome back,\n';
   String get homeSubtitle => isIndonesian
       ? 'Siap melanjutkan belajar dan membangun sesuatu yang hebat hari ini?'
       : 'Ready to continue learning and build something great today?';
@@ -81,20 +81,17 @@ class OnboardingCopy {
   String get learnSubtitleGallery => isIndonesian
       ? 'Tinjau ulang video dan ringkasan dari perjalanan belajarmu.'
       : 'Review the videos and summaries from your learning journey.';
-  String get recommendedLabel =>
-      isIndonesian ? 'Rekomendasi' : 'Recommended';
+  String get recommendedLabel => isIndonesian ? 'Rekomendasi' : 'Recommended';
   String get tracksLabel => isIndonesian ? 'Track' : 'Tracks';
   String get galleryLabel => isIndonesian ? 'Galeri' : 'Gallery';
-  String get todaysLearningQueueLabel => isIndonesian
-      ? 'Antrian belajar hari ini'
-      : "Today's learning queue";
+  String get todaysLearningQueueLabel =>
+      isIndonesian ? 'Antrian belajar hari ini' : "Today's learning queue";
   String get viewAllLabel => isIndonesian ? 'Lihat semua' : 'View all';
   String get nextUpLabel => isIndonesian ? 'Berikutnya' : 'Next up';
   String get continueSessionLabel =>
       isIndonesian ? 'Lanjutkan sesi' : 'Continue session';
-  String get wantToLearnSomethingNewLabel => isIndonesian
-      ? 'Ingin belajar hal baru?'
-      : 'Want to learn something new?';
+  String get wantToLearnSomethingNewLabel =>
+      isIndonesian ? 'Ingin belajar hal baru?' : 'Want to learn something new?';
   String get exploreTracksDescription => isIndonesian
       ? 'Jelajahi track yang sudah kamu buat atau mulai track lainnya.'
       : 'Explore tracks you have created or start another one.';
@@ -114,23 +111,19 @@ class OnboardingCopy {
       isIndonesian ? 'Belum yakin' : 'Not confident';
   String get veryConfidentLabel =>
       isIndonesian ? 'Sangat yakin' : 'Very confident';
-  String get takeDailyEvaluationLabel => isIndonesian
-      ? 'Mulai Evaluasi Harian'
-      : 'Take Daily Evaluation';
-  String get dailyEvalsWordmark => isIndonesian
-      ? 'Evaluasi Harian'
-      : 'Daily Evals';
+  String get takeDailyEvaluationLabel =>
+      isIndonesian ? 'Mulai Evaluasi Harian' : 'Take Daily Evaluation';
+  String get dailyEvalsWordmark =>
+      isIndonesian ? 'Evaluasi Harian' : 'Daily Evals';
   String get dailyEvalsQuickCheckin => isIndonesian
       ? 'Cek cepat untuk jalur belajar hari ini.'
       : 'Quick check-in for today’s learning path.';
-  String get finishDailyEvalsLabel => isIndonesian
-      ? 'Selesaikan Evaluasi'
-      : 'Finish Daily Evals';
+  String get finishDailyEvalsLabel =>
+      isIndonesian ? 'Selesaikan Evaluasi' : 'Finish Daily Evals';
   String get nextQuestionLabel =>
       isIndonesian ? 'Soal berikutnya' : 'Next question';
-  String get evaluationCompleteLabel => isIndonesian
-      ? 'Evaluasi Selesai 🎉'
-      : 'Evaluation Complete 🎉';
+  String get evaluationCompleteLabel =>
+      isIndonesian ? 'Evaluasi Selesai 🎉' : 'Evaluation Complete 🎉';
   String get evaluationCompleteSubtitle => isIndonesian
       ? 'Kerja bagus! Kamu sedang membangun pemahaman yang bertahan lama.'
       : "Great work! You're building lasting knowledge.";
@@ -139,15 +132,13 @@ class OnboardingCopy {
   String get toReviewAgainLabel =>
       isIndonesian ? 'Ulangi lagi' : 'To review again';
   String get scoreLabel => isIndonesian ? 'Skor' : 'Score';
-  String get reviewedConceptsLabel => isIndonesian
-      ? 'Konsep yang ditinjau'
-      : 'Reviewed concepts';
+  String get reviewedConceptsLabel =>
+      isIndonesian ? 'Konsep yang ditinjau' : 'Reviewed concepts';
   String get statusGoodLabel => isIndonesian ? 'Bagus' : 'Good';
   String get statusStrongLabel => isIndonesian ? 'Kuat' : 'Strong';
   String get statusReviewLabel => isIndonesian ? 'Tinjau' : 'Review';
-  String get spacedRepetitionImpactLabel => isIndonesian
-      ? 'Dampak pengulangan berspasi'
-      : 'Spaced repetition impact';
+  String get spacedRepetitionImpactLabel =>
+      isIndonesian ? 'Dampak pengulangan berspasi' : 'Spaced repetition impact';
   String get memoryStrengthenedLabel => isIndonesian
       ? 'Memorimu makin kuat.'
       : "You've strengthened your memory.";
@@ -160,9 +151,8 @@ class OnboardingCopy {
       isIndonesian ? 'Kembali ke Beranda' : 'Back to Home';
   String get continueLearningLabel =>
       isIndonesian ? 'Lanjutkan Belajar' : 'Continue Learning';
-  String get learnSomethingNewLabel => isIndonesian
-      ? 'Pelajari hal baru'
-      : 'Learn something new';
+  String get learnSomethingNewLabel =>
+      isIndonesian ? 'Pelajari hal baru' : 'Learn something new';
   String get newTrackDescription => isIndonesian
       ? 'Buat track baru di luar daftar yang sedang kamu jalani.'
       : 'Create a new track outside your current list.';
@@ -186,16 +176,12 @@ class OnboardingCopy {
   String get learningReportDescription => isIndonesian
       ? 'Performa mingguan, gap yang tertutup, dan konsep yang terbuka.'
       : 'Weekly performance, fixed gaps, unlocked concepts.';
-  String get fixedShortLabel =>
-      isIndonesian ? '+4 tertutup' : '+4 fixed';
+  String get fixedShortLabel => isIndonesian ? '+4 tertutup' : '+4 fixed';
   String get overallLabel => isIndonesian ? 'Keseluruhan' : 'Overall';
-  String get applicationLabel =>
-      isIndonesian ? 'Penerapan' : 'Application';
+  String get applicationLabel => isIndonesian ? 'Penerapan' : 'Application';
   String get analysisLabel => isIndonesian ? 'Analisis' : 'Analysis';
-  String get fixedGapsLabel =>
-      isIndonesian ? 'Gap tertutup' : 'Fixed gaps';
-  String get remainingGapsLabel =>
-      isIndonesian ? 'Sisa gap' : 'Remaining gaps';
+  String get fixedGapsLabel => isIndonesian ? 'Gap tertutup' : 'Fixed gaps';
+  String get remainingGapsLabel => isIndonesian ? 'Sisa gap' : 'Remaining gaps';
   String get thisWeekFixedDelta =>
       isIndonesian ? '+4 minggu ini' : '+4 this week';
   String get thisWeekRemainingDelta =>
@@ -206,9 +192,8 @@ class OnboardingCopy {
   String get completeLabel => isIndonesian ? 'Selesai' : 'Complete';
   String get skillGrowthLabel =>
       isIndonesian ? 'Pertumbuhan skill' : 'Skill growth';
-  String retentionDeltaLabel(int retention) => isIndonesian
-      ? '+$retention% retensi'
-      : '+$retention% retention';
+  String retentionDeltaLabel(int retention) =>
+      isIndonesian ? '+$retention% retensi' : '+$retention% retention';
   String remainingCountLabel(int count) =>
       isIndonesian ? '$count tersisa' : '$count left';
   String weekLabel(int weekNumber) =>
@@ -230,20 +215,17 @@ class OnboardingCopy {
       isIndonesian ? '$count node' : '$count nodes';
   String get prerequisiteLayerLabel =>
       isIndonesian ? 'Lapisan prasyarat' : 'Prerequisite layer';
-  String combinedLayerLabel(String first, int extraCount) => isIndonesian
-      ? '$first + $extraCount lainnya'
-      : '$first + $extraCount';
+  String combinedLayerLabel(String first, int extraCount) =>
+      isIndonesian ? '$first + $extraCount lainnya' : '$first + $extraCount';
   String get masteryConfidenceLabel =>
       isIndonesian ? 'Kepercayaan penguasaan' : 'Mastery confidence';
   String get aboutThisConceptLabel =>
       isIndonesian ? 'Tentang konsep ini' : 'About this concept';
-  String get prerequisitesLabel =>
-      isIndonesian ? 'Prasyarat' : 'Prerequisites';
+  String get prerequisitesLabel => isIndonesian ? 'Prasyarat' : 'Prerequisites';
   String get relatedConceptsLabel =>
       isIndonesian ? 'Konsep terkait' : 'Related concepts';
-  String get noDirectPrerequisiteLabel => isIndonesian
-      ? 'Tidak ada prasyarat langsung'
-      : 'No direct prerequisite';
+  String get noDirectPrerequisiteLabel =>
+      isIndonesian ? 'Tidak ada prasyarat langsung' : 'No direct prerequisite';
   String get noDirectRelatedConceptLabel => isIndonesian
       ? 'Tidak ada konsep terkait langsung'
       : 'No direct related concept';
@@ -263,32 +245,53 @@ class OnboardingCopy {
   String get languageLabel => isIndonesian ? 'Bahasa' : 'Language';
   String get appTitle => 'Wicara';
   String get getStartedLabel => isIndonesian ? 'Mulai' : 'Get started';
-  String get alreadyHaveAccountLabel => isIndonesian
-      ? 'Saya sudah punya akun'
-      : 'I already have an account';
-  String get signInTitle => isIndonesian ? 'Selamat datang kembali' : 'Welcome back';
+  String get alreadyHaveAccountLabel =>
+      isIndonesian ? 'Saya sudah punya akun' : 'I already have an account';
+  String get signInTitle =>
+      isIndonesian ? 'Selamat datang kembali' : 'Welcome back';
   String get signInSubtitle => isIndonesian
       ? 'Masuk untuk melanjutkan belajarmu'
       : 'Sign in to continue your learning';
+  String get registerTitle =>
+      isIndonesian ? 'Buat akunmu' : 'Create your account';
+  String get registerSubtitle => isIndonesian
+      ? 'Daftar sekali, lalu lanjutkan perjalanan belajarmu'
+      : 'Register once, then continue with your learning path';
   String get emailOrPhoneLabel =>
       isIndonesian ? 'Email atau nomor telepon' : 'Email or phone';
   String get emailOrPhoneHint => isIndonesian
       ? 'Masukkan email atau nomor telepon'
       : 'Enter your email or phone';
+  String get emailLabel => isIndonesian ? 'Email' : 'Email';
+  String get emailHint =>
+      isIndonesian ? 'Masukkan emailmu' : 'Enter your email';
   String get passwordLabel => isIndonesian ? 'Kata sandi' : 'Password';
   String get passwordHint =>
       isIndonesian ? 'Masukkan kata sandi' : 'Enter your password';
+  String get fullNameHint =>
+      isIndonesian ? 'Masukkan nama lengkapmu' : 'Enter your full name';
   String get forgotPasswordLabel =>
       isIndonesian ? 'Lupa kata sandi?' : 'Forgot password?';
   String get signInLabel => isIndonesian ? 'Masuk' : 'Sign in';
+  String get registerLabel => isIndonesian ? 'Daftar' : 'Register';
+  String get logInLabel => isIndonesian ? 'Masuk' : 'Log in';
   String get orContinueWithLabel =>
       isIndonesian ? 'atau lanjut dengan' : 'or continue with';
-  String get bypassForWebDevLabel => isIndonesian
-      ? 'Lewati untuk dev web'
-      : 'Bypass for web dev';
+  String get bypassForWebDevLabel =>
+      isIndonesian ? 'Lewati untuk dev web' : 'Bypass for web dev';
   String get passwordResetMockedMessage => isIndonesian
       ? 'Reset kata sandi masih dimock untuk sekarang.'
       : 'Password reset is mocked for now.';
+  String get emailRequiredMessage =>
+      isIndonesian ? 'Masukkan emailmu' : 'Enter your email';
+  String get fullNameRequiredMessage =>
+      isIndonesian ? 'Masukkan nama lengkapmu' : 'Enter your full name';
+  String get registrationEmailValidationMessage => isIndonesian
+      ? 'Gunakan alamat email untuk pendaftaran'
+      : 'Use an email address for registration';
+  String get passwordMinLengthMessage => isIndonesian
+      ? 'Kata sandi minimal 6 karakter'
+      : 'Password must be at least 6 characters';
   String get securityNoteLabel => isIndonesian
       ? 'Datamu aman dan bersifat pribadi.'
       : 'Your data is private and secure.';
@@ -302,42 +305,35 @@ class OnboardingCopy {
       isIndonesian ? 'Topik belajar' : 'Learning topic';
   String get generatePretestLabel =>
       isIndonesian ? 'Buat Pretest' : 'Generate Pretest';
-  String get typeATopicHint =>
-      isIndonesian ? 'Ketik topik' : 'Type a topic';
+  String get typeATopicHint => isIndonesian ? 'Ketik topik' : 'Type a topic';
   String get adaptivePretestReadyNextLabel => isIndonesian
       ? 'Pretest adaptif siap berikutnya'
       : 'Adaptive pretest ready next';
   String get adaptivePretestReadyDescription => isIndonesian
       ? 'Beberapa pertanyaan akan mengkalibrasi titik awalmu.'
       : 'A few questions will calibrate your starting point.';
-  String get pretestGeneratedCompleteLabel => isIndonesian
-      ? 'Pretest berhasil dibuat!'
-      : 'Pretest generated complete!';
+  String get pretestGeneratedCompleteLabel =>
+      isIndonesian ? 'Pretest berhasil dibuat!' : 'Pretest generated complete!';
   String get openingAdaptivePretestLabel => isIndonesian
       ? 'Membuka pretest adaptifmu sekarang.'
       : 'Opening your adaptive pretest now.';
-  String get confidenceQuestionLabel => isIndonesian
-      ? 'Seberapa yakin kamu?'
-      : 'How confident are you?';
+  String get confidenceQuestionLabel =>
+      isIndonesian ? 'Seberapa yakin kamu?' : 'How confident are you?';
   String get lowLabel => isIndonesian ? 'Rendah' : 'Low';
   String get highLabel => isIndonesian ? 'Tinggi' : 'High';
-  String get yourKnowledgeStateLabel => isIndonesian
-      ? 'Kondisi pengetahuanmu'
-      : 'Your knowledge state';
-  String get basedOnYourResponsesLabel => isIndonesian
-      ? 'Berdasarkan responsmu.'
-      : 'Based on your responses.';
-  String get whatsNextLabel =>
-      isIndonesian ? 'Selanjutnya' : "What's next";
+  String get yourKnowledgeStateLabel =>
+      isIndonesian ? 'Kondisi pengetahuanmu' : 'Your knowledge state';
+  String get basedOnYourResponsesLabel =>
+      isIndonesian ? 'Berdasarkan responsmu.' : 'Based on your responses.';
+  String get whatsNextLabel => isIndonesian ? 'Selanjutnya' : "What's next";
   String get personalizedPathGeneratedLabel => isIndonesian
       ? 'Jalur personal berhasil dibuat'
       : 'Personalized path generated';
   String get personalizedPathDescription => isIndonesian
       ? 'Mulai dari prasyarat, lalu lanjut berlatih pertanyaan akar masalah.'
       : 'Start with prerequisites, then practice root-cause questions.';
-  String get continueToMyPathLabel => isIndonesian
-      ? 'Lanjut ke jalur saya'
-      : 'Continue to my path';
+  String get continueToMyPathLabel =>
+      isIndonesian ? 'Lanjut ke jalur saya' : 'Continue to my path';
   String get retakePretestAnytimeLabel => isIndonesian
       ? 'Kamu bisa mengulang pretest kapan saja.'
       : 'You can retake the pretest anytime.';
@@ -370,29 +366,32 @@ class OnboardingCopy {
   };
 
   String subjectDescription(String key) => switch (key) {
-    'Math' => isIndonesian ? 'Aljabar, Geometri, Kalkulus' : 'Algebra, Geometry, Calculus',
-    'Physics' => isIndonesian ? 'Mekanika, Gelombang, Termodinamika' : 'Mechanics, Waves, Thermo',
-    'Chemistry' => isIndonesian ? 'Stoikiometri, Reaksi' : 'Stoichiometry, Reactions',
-    'Biology' => isIndonesian ? 'Sel, Genetika, Ekologi' : 'Cell, Genetics, Ecology',
+    'Math' =>
+      isIndonesian
+          ? 'Aljabar, Geometri, Kalkulus'
+          : 'Algebra, Geometry, Calculus',
+    'Physics' =>
+      isIndonesian
+          ? 'Mekanika, Gelombang, Termodinamika'
+          : 'Mechanics, Waves, Thermo',
+    'Chemistry' =>
+      isIndonesian ? 'Stoikiometri, Reaksi' : 'Stoichiometry, Reactions',
+    'Biology' =>
+      isIndonesian ? 'Sel, Genetika, Ekologi' : 'Cell, Genetics, Ecology',
     _ => key,
   };
 
   String languageDisplay(String value) => value;
 
   String studyGoalDisplay(String value) => switch (value) {
-    'Build strong foundations' => isIndonesian
-        ? 'Bangun fondasi yang kuat'
-        : 'Build strong foundations',
-    'Improve understanding' => isIndonesian
-        ? 'Perdalam pemahaman'
-        : 'Improve understanding',
-    'Prepare for exams' => isIndonesian
-        ? 'Persiapan ujian'
-        : 'Prepare for exams',
+    'Build strong foundations' =>
+      isIndonesian ? 'Bangun fondasi yang kuat' : 'Build strong foundations',
+    'Improve understanding' =>
+      isIndonesian ? 'Perdalam pemahaman' : 'Improve understanding',
+    'Prepare for exams' =>
+      isIndonesian ? 'Persiapan ujian' : 'Prepare for exams',
     'Learn faster' => isIndonesian ? 'Belajar lebih cepat' : 'Learn faster',
-    'Stay consistent' => isIndonesian
-        ? 'Tetap konsisten'
-        : 'Stay consistent',
+    'Stay consistent' => isIndonesian ? 'Tetap konsisten' : 'Stay consistent',
     _ => value,
   };
 

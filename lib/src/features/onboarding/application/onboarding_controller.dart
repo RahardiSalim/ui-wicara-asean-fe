@@ -27,15 +27,18 @@ class OnboardingController extends ChangeNotifier {
       _profile = persisted.copyWith(
         fullName: displayName,
         country: persisted.country.isEmpty ? 'United States' : null,
-        educationLevel:
-            persisted.educationLevel.isEmpty ? 'senior_high' : null,
+        educationLevel: persisted.educationLevel.isEmpty ? 'senior_high' : null,
         gradeLevel: persisted.gradeLevel.isEmpty ? '11' : null,
-        preferredLanguage: persisted.preferredLanguage.isEmpty ? 'English' : null,
+        preferredLanguage: persisted.preferredLanguage.isEmpty
+            ? 'English'
+            : null,
         selectedSubjects: persisted.selectedSubjects.isEmpty
             ? const ['Math', 'Physics', 'Chemistry', 'Biology']
             : null,
         studyGoal: persisted.studyGoal.isEmpty ? 'Improve understanding' : null,
-        dailyStudyTime: persisted.dailyStudyTime.isEmpty ? '30-45 minutes' : null,
+        dailyStudyTime: persisted.dailyStudyTime.isEmpty
+            ? '30-45 minutes'
+            : null,
       );
     }
     await _profileStore.save(_profile);
@@ -79,7 +82,9 @@ class OnboardingController extends ChangeNotifier {
   }
 
   Future<void> updatePreferredLanguage(String preferredLanguage) async {
-    await _updateProfile(_profile.copyWith(preferredLanguage: preferredLanguage));
+    await _updateProfile(
+      _profile.copyWith(preferredLanguage: preferredLanguage),
+    );
   }
 
   Future<void> updateStudyGoal(String studyGoal) async {
@@ -92,6 +97,10 @@ class OnboardingController extends ChangeNotifier {
 
   Future<void> updateSelectedSubjects(List<String> selectedSubjects) async {
     await _updateProfile(_profile.copyWith(selectedSubjects: selectedSubjects));
+  }
+
+  Future<void> replaceProfile(OnboardingProfile profile) async {
+    await _updateProfile(profile);
   }
 
   Future<void> _updateProfile(OnboardingProfile profile) async {
@@ -107,7 +116,9 @@ class OnboardingController extends ChangeNotifier {
       educationLevel: 'senior_high',
       gradeLevel: '11',
       preferredLanguage: 'English',
-      selectedSubjects: onboardingSubjectOptions.map((subject) => subject.key).toList(),
+      selectedSubjects: onboardingSubjectOptions
+          .map((subject) => subject.key)
+          .toList(),
       studyGoal: 'Improve understanding',
       dailyStudyTime: '30-45 minutes',
     );

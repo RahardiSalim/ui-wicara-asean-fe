@@ -41,7 +41,7 @@ class _SignInPageState extends State<SignInPage> {
   bool _isPasswordHidden = true;
   bool _isSubmitting = false;
 
-  bool get _showDevelopmentBypass => kDebugMode && kIsWeb;
+  bool get _showDevelopmentBypass => kDebugMode;
 
   @override
   void dispose() {
@@ -120,12 +120,17 @@ class _SignInPageState extends State<SignInPage> {
     }
   }
 
-  Future<void> _continueWithDevelopmentBypass() async {
+  Future<void> _continueWithDevelopmentBypass({
+    required bool onboardingCompleted,
+  }) async {
     setState(() => _isSubmitting = true);
     try {
       final session = await widget.authController.startDevelopmentSession(
         role: _role,
-        displayName: _emailController.text,
+        displayName: _mode == _AuthMode.register
+            ? _nameController.text
+            : _emailController.text,
+        onboardingCompleted: onboardingCompleted,
       );
       widget.onboardingController.syncDisplayName(session.displayName);
       if (!mounted) {
@@ -137,6 +142,20 @@ class _SignInPageState extends State<SignInPage> {
         setState(() => _isSubmitting = false);
       }
     }
+  }
+
+  Future<void> _openDevelopmentBypassOptions() async {
+    final option = await showModalBottomSheet<_DevBypassTarget>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => const _DevBypassSheet(),
+    );
+    if (option == null) {
+      return;
+    }
+    await _continueWithDevelopmentBypass(
+      onboardingCompleted: option == _DevBypassTarget.home,
+    );
   }
 
   void _showMessage(String message) {
@@ -201,207 +220,228 @@ class _SignInPageState extends State<SignInPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              IconButton(
-                                onPressed: _goBack,
-                                icon: const Icon(Icons.chevron_left_rounded),
-                                iconSize: 33,
-                                color: WicaraColors.ink,
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints.tightFor(
-                                  width: 38,
-                                  height: 38,
-                                ),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  IconButton(
+                                    onPressed: _goBack,
+                                    icon: const Icon(
+                                      Icons.chevron_left_rounded,
+                                    ),
+                                    iconSize: 33,
+                                    color: WicaraColors.ink,
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints.tightFor(
+                                      width: 38,
+                                      height: 38,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 38, height: 38),
+                                ],
                               ),
-                              const SizedBox(width: 38, height: 38),
-                            ],
-                          ),
-                          const SizedBox(height: 48),
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _mode == _AuthMode.login
-                                      ? copy.signInTitle
-                                      : 'Create your account',
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.headlineMedium,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _mode == _AuthMode.login
-                                      ? copy.signInSubtitle
-                                      : 'Register once, then continue with your learning path',
-                                  style: Theme.of(context).textTheme.bodyLarge
-                                      ?.copyWith(
-                                        color: WicaraColors.muted,
-                                        fontWeight: FontWeight.w400,
-                                      ),
-                                ),
-                                const SizedBox(height: 28),
-                                _AuthModeSwitch(
-                                  selectedMode: _mode,
-                                  onSelected: _selectMode,
-                                ),
-                                const SizedBox(height: 22),
-                                RolePill(role: _role, copy: copy),
-                                const SizedBox(height: 30),
-                                Form(
-                                  key: _formKey,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      if (_mode == _AuthMode.register) ...[
-                                        const _FieldLabel('Full name'),
-                                        const SizedBox(height: 10),
-                                        WicaraTextField(
-                                          controller: _nameController,
-                                          hintText: 'Enter your full name',
-                                          icon: Icons.person_outline_rounded,
-                                          textInputAction: TextInputAction.next,
-                                          validator: (value) {
-                                            if (_mode != _AuthMode.register) {
-                                              return null;
-                                            }
-                                            if (value == null ||
-                                                value.trim().isEmpty) {
-                                              return 'Enter your full name';
-                                            }
-                                            return null;
-                                          },
-                                        ),
-                                        const SizedBox(height: 22),
-                                      ],
-                                      _FieldLabel(
-                                        _mode == _AuthMode.login
-                                            ? 'Email or phone'
-                                            : 'Email',
-                                      ),
-                                      const SizedBox(height: 10),
-                                      WicaraTextField(
-                                        controller: _emailController,
-                                        hintText: _mode == _AuthMode.login
-                                            ? copy.emailOrPhoneHint
-                                            : 'Enter your email',
-                                        icon: Icons.mail_outline_rounded,
-                                        keyboardType:
-                                            TextInputType.emailAddress,
-                                        textInputAction: TextInputAction.next,
-                                        validator: (value) {
-                                          if (value == null ||
-                                              value.trim().isEmpty) {
-                                            return _mode == _AuthMode.login
+                              const SizedBox(height: 48),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _mode == _AuthMode.login
+                                          ? copy.signInTitle
+                                          : copy.registerTitle,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.headlineMedium,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      _mode == _AuthMode.login
+                                          ? copy.signInSubtitle
+                                          : copy.registerSubtitle,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
+                                            color: WicaraColors.muted,
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 28),
+                                    _AuthModeSwitch(
+                                      copy: copy,
+                                      selectedMode: _mode,
+                                      onSelected: _selectMode,
+                                    ),
+                                    const SizedBox(height: 22),
+                                    RolePill(role: _role, copy: copy),
+                                    const SizedBox(height: 30),
+                                    Form(
+                                      key: _formKey,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          if (_mode == _AuthMode.register) ...[
+                                            _FieldLabel(copy.fullNameLabel),
+                                            const SizedBox(height: 10),
+                                            WicaraTextField(
+                                              controller: _nameController,
+                                              hintText: copy.fullNameHint,
+                                              icon:
+                                                  Icons.person_outline_rounded,
+                                              textInputAction:
+                                                  TextInputAction.next,
+                                              validator: (value) {
+                                                if (_mode !=
+                                                    _AuthMode.register) {
+                                                  return null;
+                                                }
+                                                if (value == null ||
+                                                    value.trim().isEmpty) {
+                                                  return copy
+                                                      .fullNameRequiredMessage;
+                                                }
+                                                return null;
+                                              },
+                                            ),
+                                            const SizedBox(height: 22),
+                                          ],
+                                          _FieldLabel(
+                                            _mode == _AuthMode.login
+                                                ? copy.emailOrPhoneLabel
+                                                : copy.emailLabel,
+                                          ),
+                                          const SizedBox(height: 10),
+                                          WicaraTextField(
+                                            controller: _emailController,
+                                            hintText: _mode == _AuthMode.login
                                                 ? copy.emailOrPhoneHint
-                                                : 'Enter your email';
-                                          }
-                                          if (_mode == _AuthMode.register &&
-                                              !value.contains('@')) {
-                                            return 'Use an email address for registration';
-                                          }
-                                          return null;
-                                        },
+                                                : copy.emailHint,
+                                            icon: Icons.mail_outline_rounded,
+                                            keyboardType:
+                                                TextInputType.emailAddress,
+                                            textInputAction:
+                                                TextInputAction.next,
+                                            validator: (value) {
+                                              if (value == null ||
+                                                  value.trim().isEmpty) {
+                                                return _mode == _AuthMode.login
+                                                    ? copy.emailOrPhoneHint
+                                                    : copy.emailRequiredMessage;
+                                              }
+                                              if (_mode == _AuthMode.register &&
+                                                  !value.contains('@')) {
+                                                return copy
+                                                    .registrationEmailValidationMessage;
+                                              }
+                                              return null;
+                                            },
+                                          ),
+                                          const SizedBox(height: 22),
+                                          _FieldLabel(copy.passwordLabel),
+                                          const SizedBox(height: 10),
+                                          WicaraTextField(
+                                            controller: _passwordController,
+                                            hintText: copy.passwordHint,
+                                            icon: Icons.lock_outline_rounded,
+                                            obscureText: _isPasswordHidden,
+                                            textInputAction:
+                                                TextInputAction.done,
+                                            validator: (value) {
+                                              if (value == null ||
+                                                  value.isEmpty) {
+                                                return copy.passwordHint;
+                                              }
+                                              if (_mode == _AuthMode.register &&
+                                                  value.length < 6) {
+                                                return copy
+                                                    .passwordMinLengthMessage;
+                                              }
+                                              return null;
+                                            },
+                                            suffix: IconButton(
+                                              onPressed: () {
+                                                setState(() {
+                                                  _isPasswordHidden =
+                                                      !_isPasswordHidden;
+                                                });
+                                              },
+                                              icon: Icon(
+                                                _isPasswordHidden
+                                                    ? Icons
+                                                          .visibility_off_outlined
+                                                    : Icons.visibility_outlined,
+                                                color: WicaraColors.softMuted,
+                                                size: 21,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      const SizedBox(height: 22),
-                                      _FieldLabel(copy.passwordLabel),
-                                      const SizedBox(height: 10),
-                                      WicaraTextField(
-                                        controller: _passwordController,
-                                        hintText: copy.passwordHint,
-                                        icon: Icons.lock_outline_rounded,
-                                        obscureText: _isPasswordHidden,
-                                        textInputAction: TextInputAction.done,
-                                        validator: (value) {
-                                          if (value == null || value.isEmpty) {
-                                            return copy.passwordHint;
-                                          }
-                                          if (_mode == _AuthMode.register &&
-                                              value.length < 6) {
-                                            return 'Password must be at least 6 characters';
-                                          }
-                                          return null;
-                                        },
-                                        suffix: IconButton(
-                                          onPressed: () {
-                                            setState(() {
-                                              _isPasswordHidden =
-                                                  !_isPasswordHidden;
-                                            });
-                                          },
-                                          icon: Icon(
-                                            _isPasswordHidden
-                                                ? Icons.visibility_off_outlined
-                                                : Icons.visibility_outlined,
-                                            color: WicaraColors.softMuted,
-                                            size: 21,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    if (_mode == _AuthMode.login)
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton(
+                                          onPressed: () => _showMessage(
+                                            copy.passwordResetMockedMessage,
+                                          ),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor:
+                                                WicaraColors.secondary,
+                                            padding: EdgeInsets.zero,
+                                            minimumSize: const Size(0, 38),
+                                            tapTargetSize: MaterialTapTargetSize
+                                                .shrinkWrap,
+                                          ),
+                                          child: Text(
+                                            copy.forgotPasswordLabel,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelLarge
+                                                ?.copyWith(
+                                                  color: WicaraColors.secondary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
                                           ),
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                if (_mode == _AuthMode.login)
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: TextButton(
-                                      onPressed: () => _showMessage(
-                                        copy.passwordResetMockedMessage,
-                                      ),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: WicaraColors.secondary,
-                                        padding: EdgeInsets.zero,
-                                        minimumSize: const Size(0, 38),
-                                        tapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                      ),
-                                      child: Text(
-                                        copy.forgotPasswordLabel,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .labelLarge
-                                            ?.copyWith(
-                                              color: WicaraColors.secondary,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
+                                    const SizedBox(height: 32),
+                                    GradientButton(
+                                      label: _mode == _AuthMode.login
+                                          ? copy.signInLabel
+                                          : copy.registerLabel,
+                                      onPressed: _submit,
+                                      isLoading: _isSubmitting,
                                     ),
-                                  ),
-                                const SizedBox(height: 32),
-                                GradientButton(
-                                  label: _mode == _AuthMode.login
-                                      ? copy.signInLabel
-                                      : 'Register',
-                                  onPressed: _submit,
-                                  isLoading: _isSubmitting,
+                                    const SizedBox(height: 30),
+                                    _DividerText(
+                                      label: copy.orContinueWithLabel,
+                                    ),
+                                    const SizedBox(height: 18),
+                                    _GoogleButton(
+                                      onPressed: _isSubmitting
+                                          ? null
+                                          : _continueWithGoogle,
+                                    ),
+                                    if (_showDevelopmentBypass) ...[
+                                      const SizedBox(height: 14),
+                                      _DevelopmentBypassButton(
+                                        label: 'Dev Mode',
+                                        onPressed: _isSubmitting
+                                            ? null
+                                            : _openDevelopmentBypassOptions,
+                                      ),
+                                    ],
+                                    const SizedBox(height: 40),
+                                    SecurityNote(
+                                      message: copy.securityNoteLabel,
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 30),
-                                _DividerText(label: copy.orContinueWithLabel),
-                                const SizedBox(height: 18),
-                                _GoogleButton(
-                                  onPressed: _isSubmitting
-                                      ? null
-                                      : _continueWithGoogle,
-                                ),
-                                if (_showDevelopmentBypass) ...[
-                                  const SizedBox(height: 14),
-                                  _DevelopmentBypassButton(
-                                    label: copy.bypassForWebDevLabel,
-                                    onPressed: _isSubmitting
-                                        ? null
-                                        : _continueWithDevelopmentBypass,
-                                  ),
-                                ],
-                                const SizedBox(height: 40),
-                                SecurityNote(message: copy.securityNoteLabel),
-                              ],
-                            ),
-                          ),
+                              ),
                             ],
                           ),
                         ),
@@ -419,8 +459,13 @@ class _SignInPageState extends State<SignInPage> {
 }
 
 class _AuthModeSwitch extends StatelessWidget {
-  const _AuthModeSwitch({required this.selectedMode, required this.onSelected});
+  const _AuthModeSwitch({
+    required this.copy,
+    required this.selectedMode,
+    required this.onSelected,
+  });
 
+  final OnboardingCopy copy;
   final _AuthMode selectedMode;
   final ValueChanged<_AuthMode> onSelected;
 
@@ -437,12 +482,12 @@ class _AuthModeSwitch extends StatelessWidget {
       child: Row(
         children: [
           _AuthModeOption(
-            label: 'Log in',
+            label: copy.logInLabel,
             isSelected: selectedMode == _AuthMode.login,
             onTap: () => onSelected(_AuthMode.login),
           ),
           _AuthModeOption(
-            label: 'Register',
+            label: copy.registerLabel,
             isSelected: selectedMode == _AuthMode.register,
             onTap: () => onSelected(_AuthMode.register),
           ),
@@ -584,6 +629,60 @@ class _GoogleGlyph extends StatelessWidget {
         fontSize: 18,
         fontWeight: FontWeight.w600,
         height: 1,
+      ),
+    );
+  }
+}
+
+enum _DevBypassTarget { onboarding, home }
+
+class _DevBypassSheet extends StatelessWidget {
+  const _DevBypassSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Developer Bypass',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Skip real authentication in debug builds.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: WicaraColors.muted,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.flag_outlined),
+              title: const Text('Start at onboarding'),
+              subtitle: const Text(
+                'Signed in, but onboarding not completed yet.',
+              ),
+              onTap: () =>
+                  Navigator.of(context).pop(_DevBypassTarget.onboarding),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.home_outlined),
+              title: const Text('Jump to home'),
+              subtitle: const Text('Signed in and marked onboarding complete.'),
+              onTap: () => Navigator.of(context).pop(_DevBypassTarget.home),
+            ),
+          ],
+        ),
       ),
     );
   }
