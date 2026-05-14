@@ -289,17 +289,18 @@ class _HomeDashboard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const _MiniWordmark(),
-            const SizedBox(height: 38),
-            Text(
-              'Welcome back, Aisha 👋',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineMedium?.copyWith(fontSize: 23, height: 1.12),
+            const Padding(
+              padding: EdgeInsets.only(top: 20),
+              child: _SectionWordmark(
+                assetPath: 'lib/src/assets/waveIcon.png',
+                title: 'Welcome back,\nAisha',
+                iconSize: 84,
+                titleFontSize: 23,
+              ),
             ),
-            const SizedBox(height: 7),
+            const SizedBox(height: 20),
             Text(
-              'Your path adapts. You grow.',
+              'Ready to continue learning and build something great today?',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: WicaraColors.muted,
                 fontWeight: FontWeight.w600,
@@ -348,6 +349,14 @@ class _LearningQueue extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final description = switch (selectedTab) {
+      _QueueTab.recommended => 'Suggested tracks to help you reach your goals.',
+      _QueueTab.tracks =>
+        'Explore your learning tracks or create a new one here.',
+      _QueueTab.gallery =>
+        'Review the videos and summaries from your learning journey.',
+    };
+
     if (showGalleryDetail) {
       return _GalleryVideoDetail(
         constraints: constraints,
@@ -363,24 +372,23 @@ class _LearningQueue extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _QueueHeader(onBack: onBack),
-            const SizedBox(height: 42),
-            Text(
-              'Calculus I',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineMedium?.copyWith(fontSize: 24, height: 1.12),
+            const SizedBox(height: 34),
+            const _SectionWordmark(
+              assetPath: 'lib/src/assets/learnIcon.png',
+              title: 'Learn',
+              iconSize: 84,
             ),
-            const SizedBox(height: 9),
+            const SizedBox(height: 16),
+            _QueueTabs(selectedTab: selectedTab, onChanged: onTabChanged),
+            const SizedBox(height: 16),
             Text(
-              "Your current big topic. WICARA recommends the next steps inside this track.",
+              description,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: WicaraColors.muted,
                 fontWeight: FontWeight.w600,
                 height: 1.35,
               ),
             ),
-            const SizedBox(height: 28),
-            _QueueTabs(selectedTab: selectedTab, onChanged: onTabChanged),
             const SizedBox(height: 28),
             if (selectedTab == _QueueTab.recommended)
               _RecommendedQueueContent(onContinue: onOpenWorkspace)
@@ -585,7 +593,11 @@ class _StreakCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(19, 18, 19, 18),
       child: Row(
         children: [
-          const Text('🔥', style: TextStyle(fontSize: 26)),
+          const Icon(
+            Icons.local_fire_department_rounded,
+            color: WicaraColors.accentCoral,
+            size: 28,
+          ),
           const SizedBox(width: 13),
           Expanded(
             child: Column(
@@ -866,11 +878,10 @@ class _DailyEvaluationQuestionPage extends StatelessWidget {
           children: [
             _QueueHeader(onBack: onBack),
             const SizedBox(height: 34),
-            Text(
-              'Daily Evals',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineMedium?.copyWith(fontSize: 24, height: 1.12),
+            const _SectionWordmark(
+              assetPath: 'lib/src/assets/pretestIcon.png',
+              title: 'Daily Evals',
+              iconSize: 84,
             ),
             const SizedBox(height: 8),
             Text(
@@ -1563,14 +1574,20 @@ class _QueueTabButton extends StatelessWidget {
             ],
           ),
           alignment: Alignment.center,
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: isSelected ? Colors.white : WicaraColors.primaryDeep,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: isSelected ? Colors.white : WicaraColors.primaryDeep,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ),
@@ -2966,14 +2983,13 @@ class _ProfilePage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _QueueHeader(onBack: onBack),
-            const SizedBox(height: 38),
-            Text(
-              'Profile',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineMedium?.copyWith(fontSize: 24, height: 1.12),
+            const SizedBox(height: 34),
+            const _SectionWordmark(
+              assetPath: 'lib/src/assets/profileIcon.png',
+              title: 'Profile',
+              iconSize: 84,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
               'Manage your learning preferences and account.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -3242,14 +3258,13 @@ class _ProgressHub extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _QueueHeader(onBack: onBack),
-            const SizedBox(height: 38),
-            Text(
-              'Progress',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineMedium?.copyWith(fontSize: 24, height: 1.12),
+            const SizedBox(height: 34),
+            const _SectionWordmark(
+              assetPath: 'lib/src/assets/progressIcon.png',
+              title: 'Progress',
+              iconSize: 84,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
               'Start with your learning report, then explore the knowledge map.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -3982,25 +3997,36 @@ class _SubjectMapTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: WicaraColors.speechBlue,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: WicaraColors.primaryLight),
-      ),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        children: [
-          for (final subject in subjects)
-            _SubjectMapTabButton(
-              item: subject,
-              isSelected: subject.code == selectedCode,
-              onSelected: () => onSelected(subject),
-            ),
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 8.0;
+        final buttonWidth = (constraints.maxWidth - spacing) / 2;
+
+        return Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: WicaraColors.speechBlue,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: WicaraColors.primaryLight),
+          ),
+          child: Wrap(
+            spacing: spacing,
+            runSpacing: spacing,
+            alignment: WrapAlignment.center,
+            children: [
+              for (final subject in subjects)
+                SizedBox(
+                  width: buttonWidth,
+                  child: _SubjectMapTabButton(
+                    item: subject,
+                    isSelected: subject.code == selectedCode,
+                    onSelected: () => onSelected(subject),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -4119,7 +4145,6 @@ class _SubjectMapTabButton extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
         height: 38,
-        constraints: const BoxConstraints(minWidth: 92, maxWidth: 116),
         padding: const EdgeInsets.symmetric(horizontal: 10),
         alignment: Alignment.center,
         decoration: BoxDecoration(
@@ -4145,11 +4170,10 @@ class _SubjectMapTabButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (item.isLocked) ...[
-                Text(
-                  '🔒',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(fontSize: 11),
+                Icon(
+                  Icons.lock_rounded,
+                  size: 12,
+                  color: isSelected ? item.color : WicaraColors.softMuted,
                 ),
                 const SizedBox(width: 3),
               ],
@@ -6410,93 +6434,41 @@ class _Panel extends StatelessWidget {
   }
 }
 
-class _MiniWordmark extends StatelessWidget {
-  const _MiniWordmark();
+class _SectionWordmark extends StatelessWidget {
+  const _SectionWordmark({
+    required this.assetPath,
+    required this.title,
+    this.iconSize = 34,
+    this.titleFontSize = 24,
+  });
+
+  final String assetPath;
+  final String title;
+  final double iconSize;
+  final double titleFontSize;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        const CustomPaint(size: Size(51, 31), painter: _MiniMarkPainter()),
-        const SizedBox(width: 13),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: 'WICARA'
-              .split('')
-              .map(
-                (letter) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3.7),
-                  child: Text(
-                    letter,
-                    style: const TextStyle(
-                      color: WicaraColors.ink,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      height: 1,
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
+        Image.asset(
+          assetPath,
+          width: iconSize,
+          height: iconSize,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+        const SizedBox(width: 12),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            fontSize: titleFontSize,
+            height: 1.1,
+          ),
         ),
       ],
     );
   }
-}
-
-class _MiniMarkPainter extends CustomPainter {
-  const _MiniMarkPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paints = [
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..strokeWidth = size.height * 0.45
-        ..color = WicaraColors.secondary.withValues(alpha: 0.34),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..strokeWidth = size.height * 0.45
-        ..color = WicaraColors.secondaryLight.withValues(alpha: 0.62),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..strokeWidth = size.height * 0.45
-        ..color = WicaraColors.primary.withValues(alpha: 0.26),
-    ];
-
-    for (var i = 0; i < 3; i++) {
-      final offset = i * size.width * 0.22;
-      final path = Path()
-        ..moveTo(size.width * 0.08 + offset, size.height * 0.24)
-        ..cubicTo(
-          size.width * 0.15 + offset,
-          size.height * 0.65,
-          size.width * 0.25 + offset,
-          size.height * 0.75,
-          size.width * 0.34 + offset,
-          size.height * 0.72,
-        )
-        ..cubicTo(
-          size.width * 0.43 + offset,
-          size.height * 0.69,
-          size.width * 0.45 + offset,
-          size.height * 0.37,
-          size.width * 0.52 + offset,
-          size.height * 0.24,
-        );
-      canvas.drawPath(path, paints[i]);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _LessonGlyph extends StatelessWidget {

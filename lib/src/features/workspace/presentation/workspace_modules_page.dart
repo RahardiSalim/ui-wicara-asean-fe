@@ -184,10 +184,22 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
                             ],
                           ),
                           const SizedBox(height: 16),
-                          Text(
-                            'Workspace',
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                          Row(
+                            children: [
+                              Image.asset(
+                                'lib/src/assets/workspaceIcon.png',
+                                width: 84,
+                                height: 84,
+                                fit: BoxFit.contain,
+                                filterQuality: FilterQuality.high,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Workspace',
+                                style: Theme.of(context).textTheme.headlineSmall
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 14),
                           const _WorkspaceTopicCard(),
@@ -601,10 +613,13 @@ class _AgentAvatar extends StatelessWidget {
           ),
         ],
       ),
-      child: const Icon(
-        Icons.auto_awesome_rounded,
-        color: Colors.white,
-        size: 18,
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Image.asset(
+          'lib/src/assets/waveIcon.png',
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
       ),
     );
   }

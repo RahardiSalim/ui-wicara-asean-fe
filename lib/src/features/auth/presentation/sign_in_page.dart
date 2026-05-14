@@ -10,6 +10,8 @@ import '../domain/auth_repository.dart';
 import 'widgets/role_pill.dart';
 import 'widgets/wicara_text_field.dart';
 
+enum _AuthMode { login, register }
+
 class SignInPage extends StatefulWidget {
   const SignInPage({required this.authRepository, super.key});
 
@@ -21,15 +23,18 @@ class SignInPage extends StatefulWidget {
 
 class _SignInPageState extends State<SignInPage> {
   final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _role = AuthRole.learner;
 
+  _AuthMode _mode = _AuthMode.login;
   bool _isPasswordHidden = true;
   bool _isSubmitting = false;
 
   @override
   void dispose() {
+    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -43,13 +48,24 @@ class _SignInPageState extends State<SignInPage> {
 
     setState(() => _isSubmitting = true);
     try {
-      await widget.authRepository.signIn(
-        SignInRequest(
-          emailOrPhone: _emailController.text,
-          password: _passwordController.text,
-          role: _role,
-        ),
-      );
+      if (_mode == _AuthMode.login) {
+        await widget.authRepository.signIn(
+          SignInRequest(
+            emailOrPhone: _emailController.text,
+            password: _passwordController.text,
+            role: _role,
+          ),
+        );
+      } else {
+        await widget.authRepository.register(
+          RegisterRequest(
+            email: _emailController.text,
+            password: _passwordController.text,
+            displayName: _nameController.text,
+            role: _role,
+          ),
+        );
+      }
       if (!mounted) {
         return;
       }
@@ -98,6 +114,16 @@ class _SignInPageState extends State<SignInPage> {
     Navigator.of(
       context,
     ).pushNamedAndRemoveUntil(AppRoutes.onboarding, (route) => false);
+  }
+
+  void _selectMode(_AuthMode mode) {
+    if (_mode == mode || _isSubmitting) {
+      return;
+    }
+    setState(() {
+      _mode = mode;
+      _formKey.currentState?.reset();
+    });
   }
 
   void _goBack() {
@@ -154,14 +180,18 @@ class _SignInPageState extends State<SignInPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Welcome back',
+                                  _mode == _AuthMode.login
+                                      ? 'Welcome back'
+                                      : 'Create your account',
                                   style: Theme.of(
                                     context,
                                   ).textTheme.headlineMedium,
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Sign in to continue your learning',
+                                  _mode == _AuthMode.login
+                                      ? 'Sign in to continue your learning'
+                                      : 'Register once, then continue with your learning path',
                                   style: Theme.of(context).textTheme.bodyLarge
                                       ?.copyWith(
                                         color: WicaraColors.muted,
@@ -169,6 +199,11 @@ class _SignInPageState extends State<SignInPage> {
                                       ),
                                 ),
                                 const SizedBox(height: 28),
+                                _AuthModeSwitch(
+                                  selectedMode: _mode,
+                                  onSelected: _selectMode,
+                                ),
+                                const SizedBox(height: 22),
                                 RolePill(role: _role),
                                 const SizedBox(height: 30),
                                 Form(
@@ -177,11 +212,38 @@ class _SignInPageState extends State<SignInPage> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      const _FieldLabel('Email or phone'),
+                                      if (_mode == _AuthMode.register) ...[
+                                        const _FieldLabel('Full name'),
+                                        const SizedBox(height: 10),
+                                        WicaraTextField(
+                                          controller: _nameController,
+                                          hintText: 'Enter your full name',
+                                          icon: Icons.person_outline_rounded,
+                                          textInputAction: TextInputAction.next,
+                                          validator: (value) {
+                                            if (_mode != _AuthMode.register) {
+                                              return null;
+                                            }
+                                            if (value == null ||
+                                                value.trim().isEmpty) {
+                                              return 'Enter your full name';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                        const SizedBox(height: 22),
+                                      ],
+                                      _FieldLabel(
+                                        _mode == _AuthMode.login
+                                            ? 'Email or phone'
+                                            : 'Email',
+                                      ),
                                       const SizedBox(height: 10),
                                       WicaraTextField(
                                         controller: _emailController,
-                                        hintText: 'Enter your email or phone',
+                                        hintText: _mode == _AuthMode.login
+                                            ? 'Enter your email or phone'
+                                            : 'Enter your email',
                                         icon: Icons.mail_outline_rounded,
                                         keyboardType:
                                             TextInputType.emailAddress,
@@ -189,7 +251,13 @@ class _SignInPageState extends State<SignInPage> {
                                         validator: (value) {
                                           if (value == null ||
                                               value.trim().isEmpty) {
-                                            return 'Enter your email or phone';
+                                            return _mode == _AuthMode.login
+                                                ? 'Enter your email or phone'
+                                                : 'Enter your email';
+                                          }
+                                          if (_mode == _AuthMode.register &&
+                                              !value.contains('@')) {
+                                            return 'Use an email address for registration';
                                           }
                                           return null;
                                         },
@@ -206,6 +274,10 @@ class _SignInPageState extends State<SignInPage> {
                                         validator: (value) {
                                           if (value == null || value.isEmpty) {
                                             return 'Enter your password';
+                                          }
+                                          if (_mode == _AuthMode.register &&
+                                              value.length < 6) {
+                                            return 'Password must be at least 6 characters';
                                           }
                                           return null;
                                         },
@@ -229,34 +301,37 @@ class _SignInPageState extends State<SignInPage> {
                                   ),
                                 ),
                                 const SizedBox(height: 10),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: () => _showMessage(
-                                      'Password reset is mocked for now.',
-                                    ),
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: WicaraColors.secondary,
-                                      padding: EdgeInsets.zero,
-                                      minimumSize: const Size(0, 38),
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                    ),
-                                    child: Text(
-                                      'Forgot password?',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelLarge
-                                          ?.copyWith(
-                                            color: WicaraColors.secondary,
-                                            fontWeight: FontWeight.w600,
-                                          ),
+                                if (_mode == _AuthMode.login)
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () => _showMessage(
+                                        'Password reset will be sent from your account email settings.',
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: WicaraColors.secondary,
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(0, 38),
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: Text(
+                                        'Forgot password?',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelLarge
+                                            ?.copyWith(
+                                              color: WicaraColors.secondary,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
                                     ),
                                   ),
-                                ),
                                 const SizedBox(height: 32),
                                 GradientButton(
-                                  label: 'Sign in',
+                                  label: _mode == _AuthMode.login
+                                      ? 'Log in'
+                                      : 'Register',
                                   onPressed: _submit,
                                   isLoading: _isSubmitting,
                                 ),
@@ -281,6 +356,78 @@ class _SignInPageState extends State<SignInPage> {
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _AuthModeSwitch extends StatelessWidget {
+  const _AuthModeSwitch({required this.selectedMode, required this.onSelected});
+
+  final _AuthMode selectedMode;
+  final ValueChanged<_AuthMode> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: WicaraColors.fieldFill,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: WicaraColors.line),
+      ),
+      child: Row(
+        children: [
+          _AuthModeOption(
+            label: 'Log in',
+            isSelected: selectedMode == _AuthMode.login,
+            onTap: () => onSelected(_AuthMode.login),
+          ),
+          _AuthModeOption(
+            label: 'Register',
+            isSelected: selectedMode == _AuthMode.register,
+            onTap: () => onSelected(_AuthMode.register),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuthModeOption extends StatelessWidget {
+  const _AuthModeOption({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected ? WicaraColors.ink : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: isSelected ? Colors.white : WicaraColors.muted,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
       ),
     );
@@ -354,7 +501,7 @@ class _GoogleButton extends StatelessWidget {
             const _GoogleGlyph(),
             const SizedBox(width: 14),
             Text(
-              'Google',
+              'Continue with Google',
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
                 color: WicaraColors.ink,
                 fontWeight: FontWeight.w600,

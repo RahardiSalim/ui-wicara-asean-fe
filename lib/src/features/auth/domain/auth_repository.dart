@@ -18,6 +18,20 @@ class SignInRequest {
   final AuthRole role;
 }
 
+class RegisterRequest {
+  const RegisterRequest({
+    required this.email,
+    required this.password,
+    required this.displayName,
+    required this.role,
+  });
+
+  final String email;
+  final String password;
+  final String displayName;
+  final AuthRole role;
+}
+
 class AuthSession {
   const AuthSession({
     required this.userId,
@@ -43,6 +57,8 @@ class AuthException implements Exception {
 
 abstract class AuthRepository {
   Future<AuthSession> signIn(SignInRequest request);
+
+  Future<AuthSession> register(RegisterRequest request);
 
   Future<AuthSession> signInWithGoogle({required AuthRole role});
 }

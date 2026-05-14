@@ -22,6 +22,24 @@ class MockAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<AuthSession> register(RegisterRequest request) async {
+    await Future<void>.delayed(delay);
+
+    if (request.email.trim().isEmpty || request.password.isEmpty) {
+      throw const AuthException('Please enter your email and password.');
+    }
+
+    return AuthSession(
+      userId: 'mock-registered-learner',
+      displayName: request.displayName.trim().isEmpty
+          ? request.email.trim()
+          : request.displayName.trim(),
+      role: request.role,
+      token: 'mock-registered-session-token',
+    );
+  }
+
+  @override
   Future<AuthSession> signInWithGoogle({required AuthRole role}) async {
     await Future<void>.delayed(delay);
 

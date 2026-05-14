@@ -6,6 +6,7 @@ import '../../../app/app_routes.dart';
 import '../../../core/theme/wicara_colors.dart';
 import '../../../core/widgets/gradient_button.dart';
 import '../../../core/widgets/security_note.dart';
+import '../../auth/data/auth_session_store.dart';
 import '../domain/onboarding_profile.dart';
 import '../domain/onboarding_repository.dart';
 import 'widgets/onboarding_progress.dart';
@@ -23,15 +24,58 @@ class OnboardingPage extends StatefulWidget {
 }
 
 class _OnboardingPageState extends State<OnboardingPage> {
-  static const _fullName = 'Aisyah Putri';
-  static const _country = 'Indonesia';
-  static const _gradeLevel = 'Grade 11 (SMA Kelas 2)';
-  static const _preferredLanguage = 'Bahasa Indonesia';
-  static const _studyGoal = 'Improve understanding';
-  static const _dailyStudyTime = '30-60 minutes';
+  final _profileFormKey = GlobalKey<FormState>();
+  final _preferencesFormKey = GlobalKey<FormState>();
+  final _fullNameController = TextEditingController();
+  final _studyGoalController = TextEditingController(
+    text: 'Improve understanding',
+  );
+
+  static const _countryOptions = [
+    'Indonesia',
+    'Malaysia',
+    'Philippines',
+    'Vietnam',
+  ];
+  static const _educationLevels = [
+    'Elementary School',
+    'Junior High School',
+    'Senior High School',
+    'University',
+  ];
+  static const Map<String, List<String>> _gradeOptionsByLevel = {
+    'Elementary School': [
+      'Grade 1',
+      'Grade 2',
+      'Grade 3',
+      'Grade 4',
+      'Grade 5',
+      'Grade 6',
+    ],
+    'Junior High School': ['Grade 7', 'Grade 8', 'Grade 9'],
+    'Senior High School': ['Grade 10', 'Grade 11', 'Grade 12'],
+    'University': ['Year 1', 'Year 2', 'Year 3', 'Year 4', 'Graduate'],
+  };
+  static const _languageOptions = [
+    'Bahasa Indonesia',
+    'English',
+    'Bahasa Melayu',
+    'Filipino',
+    'Vietnamese',
+  ];
+  static const _dailyStudyTimeOptions = [
+    '15-30 minutes',
+    '30-60 minutes',
+    '60-90 minutes',
+  ];
 
   int _currentStep = 1;
   bool _isSaving = false;
+  String _country = _countryOptions.first;
+  String _educationLevel = 'Senior High School';
+  String _gradeLevel = 'Grade 11';
+  String _preferredLanguage = _languageOptions.first;
+  String _dailyStudyTime = '30-60 minutes';
 
   final List<_SubjectChoice> _subjects = [
     const _SubjectChoice(
@@ -64,7 +108,36 @@ class _OnboardingPageState extends State<OnboardingPage> {
     ),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    final displayName = authSessionStore.currentSession?.displayName ?? '';
+    if (displayName.trim().isNotEmpty) {
+      _fullNameController.text = displayName.trim();
+    }
+  }
+
+  @override
+  void dispose() {
+    _fullNameController.dispose();
+    _studyGoalController.dispose();
+    super.dispose();
+  }
+
   Future<void> _nextStep() async {
+    if (_currentStep == 1 &&
+        !(_profileFormKey.currentState?.validate() ?? false)) {
+      return;
+    }
+    if (_currentStep == 3 &&
+        !(_preferencesFormKey.currentState?.validate() ?? false)) {
+      return;
+    }
+    if (_currentStep == 2 && !_subjects.any((subject) => subject.isSelected)) {
+      _showMessage('Select at least one subject.');
+      return;
+    }
+
     if (_currentStep < 3) {
       setState(() => _currentStep += 1);
       return;
@@ -99,15 +172,16 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   OnboardingProfile get _profile {
     return OnboardingProfile(
-      fullName: _fullName,
+      fullName: _fullNameController.text.trim(),
       country: _country,
+      educationLevel: _educationLevel,
       gradeLevel: _gradeLevel,
       preferredLanguage: _preferredLanguage,
       selectedSubjects: _subjects
           .where((subject) => subject.isSelected)
           .map((subject) => subject.title)
           .toList(),
-      studyGoal: _studyGoal,
+      studyGoal: _studyGoalController.text.trim(),
       dailyStudyTime: _dailyStudyTime,
     );
   }
@@ -118,8 +192,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
     });
   }
 
-  void _showMockPicker(String label) {
-    _showMessage('$label picker is mocked for now.');
+  List<String> get _gradeOptions =>
+      _gradeOptionsByLevel[_educationLevel] ?? const ['Grade 11'];
+
+  void _setEducationLevel(String value) {
+    setState(() {
+      _educationLevel = value;
+      final options = _gradeOptionsByLevel[_educationLevel] ?? const <String>[];
+      if (!options.contains(_gradeLevel) && options.isNotEmpty) {
+        _gradeLevel = options.first;
+      }
+    });
   }
 
   void _showMessage(String message) {
@@ -151,6 +234,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          if (_currentStep > 1) ...[
+                            _OnboardingBackButton(onPressed: _previousStep),
+                            const SizedBox(height: 16),
+                          ],
                           OnboardingProgress(currentStep: _currentStep),
                           const SizedBox(height: 52),
                           AnimatedSwitcher(
@@ -191,33 +278,56 @@ class _OnboardingPageState extends State<OnboardingPage> {
         subtitle: 'Tell us a bit about yourself to personalize\nyour learning.',
       ),
       const SizedBox(height: 37),
-      OnboardingSelectField(
-        label: 'Full name',
-        value: _fullName,
-        showChevron: false,
-        leading: const _SoftIcon(Icons.person_outline_rounded),
-        onTap: () => _showMockPicker('Full name'),
-      ),
-      const SizedBox(height: 26),
-      OnboardingSelectField(
-        label: 'Country',
-        value: _country,
-        leading: const IndonesiaFlag(),
-        onTap: () => _showMockPicker('Country'),
-      ),
-      const SizedBox(height: 26),
-      OnboardingSelectField(
-        label: 'Grade level',
-        value: _gradeLevel,
-        leading: const _SoftIcon(Icons.school_outlined),
-        onTap: () => _showMockPicker('Grade level'),
-      ),
-      const SizedBox(height: 26),
-      OnboardingSelectField(
-        label: 'Preferred language',
-        value: _preferredLanguage,
-        leading: const _SoftIcon(Icons.language_rounded),
-        onTap: () => _showMockPicker('Preferred language'),
+      Form(
+        key: _profileFormKey,
+        child: Column(
+          children: [
+            _OnboardingTextField(
+              label: 'Full name',
+              controller: _fullNameController,
+              icon: Icons.person_outline_rounded,
+              hintText: 'Enter your full name',
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Enter your full name';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 26),
+            _OnboardingDropdown(
+              label: 'Country',
+              value: _country,
+              options: _countryOptions,
+              leading: const IndonesiaFlag(),
+              onChanged: (value) => setState(() => _country = value),
+            ),
+            const SizedBox(height: 26),
+            _OnboardingDropdown(
+              label: 'Education level',
+              value: _educationLevel,
+              options: _educationLevels,
+              leading: const _SoftIcon(Icons.account_balance_outlined),
+              onChanged: _setEducationLevel,
+            ),
+            const SizedBox(height: 26),
+            _OnboardingDropdown(
+              label: 'Grade level',
+              value: _gradeLevel,
+              options: _gradeOptions,
+              leading: const _SoftIcon(Icons.school_outlined),
+              onChanged: (value) => setState(() => _gradeLevel = value),
+            ),
+            const SizedBox(height: 26),
+            _OnboardingDropdown(
+              label: 'Preferred language',
+              value: _preferredLanguage,
+              options: _languageOptions,
+              leading: const _SoftIcon(Icons.language_rounded),
+              onChanged: (value) => setState(() => _preferredLanguage = value),
+            ),
+          ],
+        ),
       ),
       const SizedBox(height: 34),
       GradientButton(
@@ -240,8 +350,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   List<Widget> _subjectsStep(BuildContext context) {
     return [
-      _OnboardingBackButton(onPressed: _previousStep),
-      const SizedBox(height: 22),
       const _OnboardingTitle(
         title: 'Choose your subjects',
         subtitle:
@@ -278,25 +386,31 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   List<Widget> _preferencesStep(BuildContext context) {
     return [
-      _OnboardingBackButton(onPressed: _previousStep),
-      const SizedBox(height: 22),
       const _OnboardingTitle(
         title: 'How would you like to learn?',
         subtitle: 'Pick your preferences. You can change\nthem anytime.',
       ),
       const SizedBox(height: 23),
-      OnboardingSelectField(
-        label: 'Study goal (optional)',
-        value: _studyGoal,
-        leading: const _SoftIcon(Icons.track_changes_rounded),
-        onTap: () => _showMockPicker('Study goal'),
-      ),
-      const SizedBox(height: 25),
-      OnboardingSelectField(
-        label: 'Daily study time (optional)',
-        value: _dailyStudyTime,
-        leading: const _SoftIcon(Icons.schedule_rounded),
-        onTap: () => _showMockPicker('Daily study time'),
+      Form(
+        key: _preferencesFormKey,
+        child: Column(
+          children: [
+            _OnboardingTextField(
+              label: 'Study goal (optional)',
+              controller: _studyGoalController,
+              icon: Icons.track_changes_rounded,
+              hintText: 'What do you want to improve?',
+            ),
+            const SizedBox(height: 25),
+            _OnboardingDropdown(
+              label: 'Daily study time (optional)',
+              value: _dailyStudyTime,
+              options: _dailyStudyTimeOptions,
+              leading: const _SoftIcon(Icons.schedule_rounded),
+              onChanged: (value) => setState(() => _dailyStudyTime = value),
+            ),
+          ],
+        ),
       ),
       const SizedBox(height: 18),
       const PreferenceCallout(),
@@ -350,10 +464,19 @@ class _OnboardingTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        Image.asset(
+          'lib/src/assets/onboardingIcon.png',
+          width: 84,
+          height: 84,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+        const SizedBox(height: 14),
         Text(
           title,
+          textAlign: TextAlign.center,
           style: Theme.of(
             context,
           ).textTheme.headlineMedium?.copyWith(fontSize: 24, height: 1.12),
@@ -361,6 +484,7 @@ class _OnboardingTitle extends StatelessWidget {
         const SizedBox(height: 13),
         Text(
           subtitle,
+          textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: WicaraColors.muted,
             fontWeight: FontWeight.w600,
@@ -368,6 +492,132 @@ class _OnboardingTitle extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _OnboardingTextField extends StatelessWidget {
+  const _OnboardingTextField({
+    required this.label,
+    required this.controller,
+    required this.icon,
+    required this.hintText,
+    this.validator,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final IconData icon;
+  final String hintText;
+  final FormFieldValidator<String>? validator;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: WicaraColors.text,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextFormField(
+          controller: controller,
+          validator: validator,
+          textInputAction: TextInputAction.next,
+          decoration: InputDecoration(
+            hintText: hintText,
+            prefixIcon: Icon(icon, color: WicaraColors.softMuted, size: 21),
+            filled: true,
+            fillColor: WicaraColors.fieldFill,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 15,
+              vertical: 16,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(
+                color: WicaraColors.line,
+                width: 1.4,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(
+                color: WicaraColors.line,
+                width: 1.4,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(
+                color: WicaraColors.primaryDeep,
+                width: 1.4,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OnboardingDropdown extends StatelessWidget {
+  const _OnboardingDropdown({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.leading,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String value;
+  final List<String> options;
+  final Widget leading;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      items: [
+        for (final option in options)
+          DropdownMenuItem<String>(value: option, child: Text(option)),
+      ],
+      onChanged: (value) {
+        if (value != null) {
+          onChanged(value);
+        }
+      },
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: SizedBox(width: 48, child: Center(child: leading)),
+        filled: true,
+        fillColor: WicaraColors.fieldFill,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 15,
+          vertical: 16,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: WicaraColors.line, width: 1.4),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: WicaraColors.line, width: 1.4),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(
+            color: WicaraColors.primaryDeep,
+            width: 1.4,
+          ),
+        ),
+      ),
     );
   }
 }

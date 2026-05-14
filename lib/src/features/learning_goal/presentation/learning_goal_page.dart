@@ -121,6 +121,16 @@ class _LearningGoalPageState extends State<LearningGoalPage> {
                                 mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
+                                  Center(
+                                    child: Image.asset(
+                                      'lib/src/assets/pretestIcon.png',
+                                      width: 84,
+                                      height: 84,
+                                      fit: BoxFit.contain,
+                                      filterQuality: FilterQuality.high,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
                                   Text(
                                     'What would you like to learn?',
                                     textAlign: TextAlign.center,

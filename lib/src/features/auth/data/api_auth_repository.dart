@@ -3,12 +3,15 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/network/api_client.dart';
 import '../domain/auth_repository.dart';
+import 'auth_session_store.dart';
 
 class ApiAuthRepository implements AuthRepository {
   ApiAuthRepository({
     required ApiClient apiClient,
+    required AuthSessionStore sessionStore,
     required String googleWebClientId,
   }) : _apiClient = apiClient,
+       _sessionStore = sessionStore,
        _googleSignIn = GoogleSignIn(
          scopes: const ['email', 'profile'],
          clientId: googleWebClientId.isEmpty ? null : googleWebClientId,
@@ -18,6 +21,7 @@ class ApiAuthRepository implements AuthRepository {
        );
 
   final ApiClient _apiClient;
+  final AuthSessionStore _sessionStore;
   final GoogleSignIn _googleSignIn;
 
   @override
@@ -31,7 +35,29 @@ class ApiAuthRepository implements AuthRepository {
           'role': request.role.name,
         },
       );
-      return _toAuthSession(json, request.role);
+      final session = _toAuthSession(json, request.role);
+      _sessionStore.save(session);
+      return session;
+    } on ApiClientException catch (error) {
+      throw AuthException(error.message);
+    }
+  }
+
+  @override
+  Future<AuthSession> register(RegisterRequest request) async {
+    try {
+      final json = await _apiClient.postJson(
+        '/api/v1/auth/register',
+        body: {
+          'email': request.email.trim(),
+          'password': request.password,
+          'display_name': request.displayName.trim(),
+          'role': request.role.name,
+        },
+      );
+      final session = _toAuthSession(json, request.role);
+      _sessionStore.save(session);
+      return session;
     } on ApiClientException catch (error) {
       throw AuthException(error.message);
     }
@@ -40,6 +66,11 @@ class ApiAuthRepository implements AuthRepository {
   @override
   Future<AuthSession> signInWithGoogle({required AuthRole role}) async {
     try {
+      if (kIsWeb && Uri.base.port != 3000) {
+        throw AuthException(
+          'Google login is configured for http://localhost:3000. Run Flutter with --web-port 3000.',
+        );
+      }
       final account = await _googleSignIn.signIn();
       if (account == null) {
         throw const AuthException('Google sign-in was cancelled.');
@@ -60,7 +91,9 @@ class ApiAuthRepository implements AuthRepository {
           'role': role.name,
         },
       );
-      return _toAuthSession(json, role);
+      final session = _toAuthSession(json, role);
+      _sessionStore.save(session);
+      return session;
     } on AuthException {
       rethrow;
     } on ApiClientException catch (error) {
