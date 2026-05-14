@@ -151,6 +151,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          if (_currentStep > 1) ...[
+                            _OnboardingBackButton(onPressed: _previousStep),
+                            const SizedBox(height: 16),
+                          ],
                           OnboardingProgress(currentStep: _currentStep),
                           const SizedBox(height: 52),
                           AnimatedSwitcher(
@@ -240,8 +244,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   List<Widget> _subjectsStep(BuildContext context) {
     return [
-      _OnboardingBackButton(onPressed: _previousStep),
-      const SizedBox(height: 22),
       const _OnboardingTitle(
         title: 'Choose your subjects',
         subtitle:
@@ -278,8 +280,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   List<Widget> _preferencesStep(BuildContext context) {
     return [
-      _OnboardingBackButton(onPressed: _previousStep),
-      const SizedBox(height: 22),
       const _OnboardingTitle(
         title: 'How would you like to learn?',
         subtitle: 'Pick your preferences. You can change\nthem anytime.',
@@ -350,10 +350,19 @@ class _OnboardingTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        Image.asset(
+          'lib/src/assets/onboardingIcon.png',
+          width: 84,
+          height: 84,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+        const SizedBox(height: 14),
         Text(
           title,
+          textAlign: TextAlign.center,
           style: Theme.of(
             context,
           ).textTheme.headlineMedium?.copyWith(fontSize: 24, height: 1.12),
@@ -361,6 +370,7 @@ class _OnboardingTitle extends StatelessWidget {
         const SizedBox(height: 13),
         Text(
           subtitle,
+          textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: WicaraColors.muted,
             fontWeight: FontWeight.w600,
