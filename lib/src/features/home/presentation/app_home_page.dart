@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_routes.dart';
 import '../../../core/theme/wicara_colors.dart';
 import '../../../core/widgets/gradient_button.dart';
+import '../../../core/widgets/language_chip.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../curriculum/domain/curriculum_models.dart';
 import '../../curriculum/domain/curriculum_repository.dart';
@@ -24,6 +25,8 @@ import '../../workspace/domain/workspace_models.dart';
 enum _HomeTab { home, queue, progress, profile }
 
 enum _QueueTab { recommended, tracks, gallery }
+
+enum _ReportRangeOption { thisWeek, lastWeek, last4Weeks }
 
 class _HomeCopyScope extends InheritedWidget {
   const _HomeCopyScope({required this.copy, required super.child});
@@ -69,6 +72,8 @@ class _AppHomePageState extends State<AppHomePage> {
   int _dailyEvaluationIndex = 0;
   final Map<int, String> _dailyEvaluationAnswers = {};
   String? _dailyEvaluationSessionId;
+  DailyEvaluationSession? _dailyEvaluationSession;
+  DailyEvaluationResult? _dailyEvaluationResult;
   List<PretestQuestion> _backendDailyEvaluationQuestions = const [];
   bool _isLoadingDailyEvaluation = false;
   bool _isSubmittingDailyEvaluation = false;
@@ -121,6 +126,8 @@ class _AppHomePageState extends State<AppHomePage> {
       _dailyEvaluationIndex = 0;
       _dailyEvaluationAnswers.clear();
       _dailyEvaluationSessionId = null;
+      _dailyEvaluationSession = null;
+      _dailyEvaluationResult = null;
       _backendDailyEvaluationQuestions = const [];
       _dailyEvaluationError = null;
       _isLoadingDailyEvaluation = true;
@@ -133,6 +140,8 @@ class _AppHomePageState extends State<AppHomePage> {
       }
       setState(() {
         _dailyEvaluationSessionId = session.sessionId;
+        _dailyEvaluationSession = session;
+        _dailyEvaluationIndex = _initialDailyEvaluationIndex(session);
         _backendDailyEvaluationQuestions = session.questions;
         _isLoadingDailyEvaluation = false;
       });
@@ -170,17 +179,24 @@ class _AppHomePageState extends State<AppHomePage> {
         optionId: optionId,
         confidence: 6,
       );
+      DailyEvaluationResult? evaluationResult;
+      final isLastQuestion =
+          _dailyEvaluationIndex >= _backendDailyEvaluationQuestions.length - 1;
+      if (isLastQuestion) {
+        evaluationResult = await widget.homeRepository
+            .fetchDailyEvaluationResult(sessionId: sessionId);
+      }
       if (!mounted) {
         return;
       }
       setState(() {
         _isSubmittingDailyEvaluation = false;
-        if (_dailyEvaluationIndex <
-            _backendDailyEvaluationQuestions.length - 1) {
+        if (!isLastQuestion) {
           _dailyEvaluationIndex += 1;
           return;
         }
 
+        _dailyEvaluationResult = evaluationResult;
         _showDailyEvaluation = false;
         _showEvaluationResult = true;
       });
@@ -207,6 +223,24 @@ class _AppHomePageState extends State<AppHomePage> {
     }
 
     setState(() => _dailyEvaluationIndex -= 1);
+  }
+
+  int _initialDailyEvaluationIndex(DailyEvaluationSession session) {
+    final currentQuestionId = session.currentQuestion?.id;
+    if (currentQuestionId != null && currentQuestionId.isNotEmpty) {
+      final index = session.questions.indexWhere(
+        (question) => question.id == currentQuestionId,
+      );
+      if (index >= 0) {
+        return index;
+      }
+    }
+    if (session.questions.isEmpty) {
+      return 0;
+    }
+    return session.progress.completed
+        .clamp(0, session.questions.length - 1)
+        .toInt();
   }
 
   void _openLearningReport() {
@@ -249,6 +283,26 @@ class _AppHomePageState extends State<AppHomePage> {
     ).pushNamed(AppRoutes.workspaceModules, arguments: arguments);
     if (!mounted) return;
     _retryHomeSnapshot();
+  }
+
+  void _handleRecommendedAction(RecommendedNextAction action) {
+    switch (action.actionType.toLowerCase()) {
+      case 'review':
+        _openDailyEvaluation();
+        return;
+      case 'practice':
+        _openQueue(_QueueTab.recommended);
+        return;
+      case 'deepen':
+        _openQueue(_QueueTab.tracks);
+        return;
+      case 'continue_learning':
+        _openQueue(_QueueTab.tracks);
+        return;
+      default:
+        _openHome();
+        return;
+    }
   }
 
   @override
@@ -373,6 +427,7 @@ class _AppHomePageState extends State<AppHomePage> {
       }
       return _DailyEvaluationQuestionPage(
         constraints: constraints,
+        session: _dailyEvaluationSession,
         question: _backendDailyEvaluationQuestions[_dailyEvaluationIndex],
         questionIndex: _dailyEvaluationIndex,
         totalQuestions: _backendDailyEvaluationQuestions.length,
@@ -389,7 +444,9 @@ class _AppHomePageState extends State<AppHomePage> {
     if (_showEvaluationResult) {
       return _EvaluationCompletePage(
         constraints: constraints,
+        result: _dailyEvaluationResult,
         onBackHome: _openHome,
+        onActionSelected: _handleRecommendedAction,
       );
     }
 
@@ -421,6 +478,7 @@ class _AppHomePageState extends State<AppHomePage> {
       ),
       _HomeTab.progress => _ProgressHub(
         constraints: constraints,
+        homeRepository: widget.homeRepository,
         curriculumRepository: widget.curriculumRepository,
         onBack: _openHome,
         showLearningReport: _showLearningReport,
@@ -429,6 +487,7 @@ class _AppHomePageState extends State<AppHomePage> {
         onCloseLearningReport: _closeLearningReport,
         onOpenKnowledgeMap: _openKnowledgeMap,
         onCloseKnowledgeMap: _closeKnowledgeMap,
+        onRecommendationSelected: _handleRecommendedAction,
       ),
       _HomeTab.profile => _HomeSnapshotBuilder(
         constraints: constraints,
@@ -1324,6 +1383,7 @@ class _DailyEvaluationCardState extends State<_DailyEvaluationCard> {
 class _DailyEvaluationQuestionPage extends StatelessWidget {
   const _DailyEvaluationQuestionPage({
     required this.constraints,
+    required this.session,
     required this.question,
     required this.questionIndex,
     required this.totalQuestions,
@@ -1335,6 +1395,7 @@ class _DailyEvaluationQuestionPage extends StatelessWidget {
   });
 
   final BoxConstraints constraints;
+  final DailyEvaluationSession? session;
   final PretestQuestion question;
   final int questionIndex;
   final int totalQuestions;
@@ -1346,8 +1407,15 @@ class _DailyEvaluationQuestionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = (questionIndex + 1) / totalQuestions;
+    final progress = totalQuestions == 0
+        ? 0.0
+        : (questionIndex + 1) / totalQuestions;
+    final progressLabel = '${questionIndex + 1} of $totalQuestions';
     final isLastQuestion = questionIndex == totalQuestions - 1;
+    final reviewDue = session?.reviewDue ?? const ReviewDueSummary();
+    final forecast = session?.retentionForecast ?? const RetentionForecast();
+    final callout =
+        session?.recommendationCallout ?? const RecommendationCallout();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 18, 28, 30),
@@ -1356,36 +1424,23 @@ class _DailyEvaluationQuestionPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _QueueHeader(onBack: onBack),
-            const SizedBox(height: 34),
-            const _SectionWordmark(
-              assetPath: 'lib/src/assets/pretestIcon.png',
-              title: 'Daily Evals',
-              iconSize: 84,
+            _LearningSurfaceHeader(
+              title: session?.title ?? 'Daily Evaluation',
+              languageCode: _languageCode(session?.language ?? 'en'),
+              onBack: onBack,
+              leadingIcon: Icons.close_rounded,
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Quick check-in for today’s learning path.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: WicaraColors.muted,
-                fontWeight: FontWeight.w600,
-              ),
+            const SizedBox(height: 28),
+            _ReviewDueCard(reviewDue: reviewDue),
+            const SizedBox(height: 28),
+            _DailyEvaluationSectionTitle(
+              label: 'Quick check-in',
+              progressLabel: progressLabel,
+              subtitle: 'Answer five questions to strengthen your memory.',
             ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Text(
-                  '${questionIndex + 1} / $totalQuestions',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: WicaraColors.text,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(child: _EvaluationProgressLine(value: progress)),
-              ],
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
+            _EvaluationProgressLine(value: progress),
+            const SizedBox(height: 18),
             _Panel(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
               child: Column(
@@ -1447,7 +1502,7 @@ class _DailyEvaluationQuestionPage extends StatelessWidget {
                   const SizedBox(height: 22),
                   GradientButton(
                     label: isLastQuestion
-                        ? 'Finish Daily Evals'
+                        ? 'Finish evaluation'
                         : 'Next question',
                     onPressed: selectedOptionId == null ? null : onSubmit,
                     isLoading: isSubmitting,
@@ -1455,6 +1510,8 @@ class _DailyEvaluationQuestionPage extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 18),
+            _RetentionForecastPanel(forecast: forecast, callout: callout),
           ],
         ),
       ),
@@ -1481,18 +1538,476 @@ class _EvaluationProgressLine extends StatelessWidget {
   }
 }
 
-class _EvaluationCompletePage extends StatelessWidget {
-  const _EvaluationCompletePage({
-    required this.constraints,
-    required this.onBackHome,
+class _LearningSurfaceHeader extends StatelessWidget {
+  const _LearningSurfaceHeader({
+    required this.title,
+    required this.languageCode,
+    required this.onBack,
+    this.leadingIcon = Icons.chevron_left_rounded,
   });
 
-  final BoxConstraints constraints;
-  final VoidCallback onBackHome;
+  final String title;
+  final String languageCode;
+  final VoidCallback onBack;
+  final IconData leadingIcon;
 
   @override
   Widget build(BuildContext context) {
+    return Row(
+      children: [
+        IconButton(
+          onPressed: onBack,
+          icon: Icon(leadingIcon),
+          iconSize: 30,
+          color: WicaraColors.ink,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        LanguageChip(languageCode: languageCode),
+      ],
+    );
+  }
+}
+
+class _ReviewDueCard extends StatelessWidget {
+  const _ReviewDueCard({required this.reviewDue});
+
+  final ReviewDueSummary reviewDue;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF1F4FF), Color(0xFFF6EFFF)],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: WicaraColors.line),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.62),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.schedule_rounded,
+              color: WicaraColors.secondary,
+              size: 25,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  reviewDue.title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  reviewDue.summary.isEmpty
+                      ? '${reviewDue.dueCount} items ready for review'
+                      : reviewDue.summary,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: WicaraColors.muted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: WicaraColors.secondary,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: WicaraColors.secondary.withValues(alpha: 0.24),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Text(
+              reviewDue.actionLabel,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DailyEvaluationSectionTitle extends StatelessWidget {
+  const _DailyEvaluationSectionTitle({
+    required this.label,
+    required this.progressLabel,
+    required this.subtitle,
+  });
+
+  final String label;
+  final String progressLabel;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: WicaraColors.muted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Text(
+          progressLabel,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: WicaraColors.secondaryDeep,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RetentionForecastPanel extends StatelessWidget {
+  const _RetentionForecastPanel({
+    required this.forecast,
+    required this.callout,
+  });
+
+  final RetentionForecast forecast;
+  final RecommendationCallout callout;
+
+  @override
+  Widget build(BuildContext context) {
+    final points = forecast.points.isEmpty
+        ? const [
+            RetentionForecastPoint(label: 'Today', retentionPercent: 100),
+            RetentionForecastPoint(label: 'Day 1', retentionPercent: 70),
+            RetentionForecastPoint(label: 'Day 2', retentionPercent: 52),
+            RetentionForecastPoint(label: 'Day 7', retentionPercent: 38),
+            RetentionForecastPoint(
+              label: 'Day 14',
+              retentionPercent: 25,
+              projected: true,
+            ),
+            RetentionForecastPoint(
+              label: 'Day 30',
+              retentionPercent: 17,
+              projected: true,
+            ),
+          ]
+        : forecast.points;
+
+    return _Panel(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  forecast.title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.info_outline_rounded,
+                color: WicaraColors.muted,
+                size: 16,
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Text(
+            forecast.basis.isEmpty
+                ? 'Based on the Ebbinghaus forgetting curve MVP.'
+                : forecast.basis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: WicaraColors.muted,
+              fontWeight: FontWeight.w600,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            height: 170,
+            child: CustomPaint(
+              painter: _RetentionForecastPainter(points: points),
+              child: Align(
+                alignment: Alignment.topRight,
+                child: _RetentionCalloutBubble(callout: callout),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _RetentionCoachingNote(message: callout.message),
+        ],
+      ),
+    );
+  }
+}
+
+class _RetentionForecastPainter extends CustomPainter {
+  const _RetentionForecastPainter({required this.points});
+
+  final List<RetentionForecastPoint> points;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final chartRect = Rect.fromLTWH(8, 12, size.width - 16, size.height - 38);
+    final gridPaint = Paint()
+      ..color = WicaraColors.line
+      ..strokeWidth = 1;
+    for (final factor in [0.0, 0.5, 1.0]) {
+      final y = chartRect.bottom - chartRect.height * factor;
+      canvas.drawLine(
+        Offset(chartRect.left, y),
+        Offset(chartRect.right, y),
+        gridPaint,
+      );
+    }
+    final linePaint = Paint()
+      ..color = WicaraColors.secondary
+      ..strokeWidth = 2.4
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final dotPaint = Paint()..color = WicaraColors.secondary;
+    final projectedPaint = Paint()
+      ..color = WicaraColors.primaryDeep.withValues(alpha: 0.58)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    final path = Path();
+    final offsets = <Offset>[];
+    for (var index = 0; index < points.length; index++) {
+      final x = points.length == 1
+          ? chartRect.left
+          : chartRect.left + (chartRect.width / (points.length - 1)) * index;
+      final y =
+          chartRect.bottom -
+          chartRect.height *
+              (points[index].retentionPercent.clamp(0, 100).toDouble() / 100);
+      final offset = Offset(x, y);
+      offsets.add(offset);
+      if (index == 0) {
+        path.moveTo(offset.dx, offset.dy);
+      } else if (!points[index].projected) {
+        path.lineTo(offset.dx, offset.dy);
+      }
+    }
+    canvas.drawPath(path, linePaint);
+    for (var index = 0; index < offsets.length; index++) {
+      final point = points[index];
+      if (point.projected && index > 0) {
+        canvas.drawLine(offsets[index - 1], offsets[index], projectedPaint);
+      }
+      canvas.drawCircle(
+        offsets[index],
+        point.projected ? 4 : 5,
+        point.projected ? (Paint()..color = Colors.white) : dotPaint,
+      );
+      if (point.projected) {
+        canvas.drawCircle(offsets[index], 4, projectedPaint);
+      }
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: point.label,
+          style: const TextStyle(
+            color: WicaraColors.muted,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: 48);
+      textPainter.paint(
+        canvas,
+        Offset(
+          offsets[index].dx - textPainter.width / 2,
+          chartRect.bottom + 12,
+        ),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RetentionForecastPainter oldDelegate) {
+    return oldDelegate.points != points;
+  }
+}
+
+class _RetentionCalloutBubble extends StatelessWidget {
+  const _RetentionCalloutBubble({required this.callout});
+
+  final RecommendationCallout callout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 12, top: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: WicaraColors.line),
+        boxShadow: [
+          BoxShadow(
+            color: WicaraColors.shadowBlue.withValues(alpha: 0.22),
+            blurRadius: 18,
+            offset: const Offset(0, 9),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            callout.actionLabel,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: WicaraColors.secondaryDeep,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            callout.impactLabel,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: WicaraColors.accentMint,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RetentionCoachingNote extends StatelessWidget {
+  const _RetentionCoachingNote({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+      decoration: BoxDecoration(
+        color: WicaraColors.speechBlue.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.54),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.timeline_rounded,
+              color: WicaraColors.secondary,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message.isEmpty
+                  ? 'Keep reviewing to move the curve up and improve long-term retention.'
+                  : message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: WicaraColors.text,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EvaluationCompletePage extends StatelessWidget {
+  const _EvaluationCompletePage({
+    required this.constraints,
+    required this.result,
+    required this.onBackHome,
+    required this.onActionSelected,
+  });
+
+  final BoxConstraints constraints;
+  final DailyEvaluationResult? result;
+  final VoidCallback onBackHome;
+  final ValueChanged<RecommendedNextAction> onActionSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final impact =
+        result?.spacedRepetitionImpact ?? const SpacedRepetitionImpact();
+    final nextReview = result?.nextReview ?? const DailyEvaluationNextReview();
+    final actions = result?.recommendedNextActions ?? const [];
+    final scoreFraction =
+        ((result?.scorePercent ?? 0).clamp(0, 100).toDouble()) / 100;
     final copy = _HomeCopyScope.of(context);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 18, 28, 30),
       child: ConstrainedBox(
@@ -1500,7 +2015,11 @@ class _EvaluationCompletePage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _QueueHeader(onBack: onBackHome),
+            _LearningSurfaceHeader(
+              title: 'Evaluation Complete',
+              languageCode: 'EN',
+              onBack: onBackHome,
+            ),
             const SizedBox(height: 25),
             Text(
               copy.evaluationCompleteLabel,
@@ -1524,16 +2043,25 @@ class _EvaluationCompletePage extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
               child: Row(
                 children: [
-                  const Expanded(child: _EvaluationScoreRing(score: 0.87)),
+                  Expanded(child: _EvaluationScoreRing(score: scoreFraction)),
                   const SizedBox(width: 20),
                   Expanded(
                     child: Column(
-                      children: const [
-                        _EvaluationStat(value: '12', label: 'Reviewed'),
-                        SizedBox(height: 17),
-                        _EvaluationStat(value: '10', label: 'Correct'),
-                        SizedBox(height: 17),
-                        _EvaluationStat(value: '2', label: 'To review again'),
+                      children: [
+                        _EvaluationStat(
+                          value: '${result?.reviewedCount ?? 0}',
+                          label: 'Reviewed',
+                        ),
+                        const SizedBox(height: 17),
+                        _EvaluationStat(
+                          value: '${result?.correctCount ?? 0}',
+                          label: 'Correct',
+                        ),
+                        const SizedBox(height: 17),
+                        _EvaluationStat(
+                          value: '${result?.reviewAgainCount ?? 0}',
+                          label: 'To review again',
+                        ),
                       ],
                     ),
                   ),
@@ -1541,11 +2069,24 @@ class _EvaluationCompletePage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
-            const _EvaluationConceptsPanel(),
+            _EvaluationConceptsPanel(
+              concepts: result?.reviewedConcepts ?? const [],
+            ),
             const SizedBox(height: 18),
-            const _SpacedRepetitionImpactPanel(),
+            _SpacedRepetitionImpactPanel(
+              impact: impact,
+              nextReview: nextReview,
+            ),
+            const SizedBox(height: 18),
+            _RecommendedNextActionsPanel(
+              actions: actions,
+              onActionSelected: onActionSelected,
+            ),
             const SizedBox(height: 28),
-            _BackHomeButton(onPressed: onBackHome),
+            _BackHomeButton(
+              label: result?.backToHome.label ?? 'Back to Home',
+              onPressed: onBackHome,
+            ),
           ],
         ),
       ),
@@ -1701,15 +2242,9 @@ class _EvaluationStat extends StatelessWidget {
 }
 
 class _EvaluationConceptsPanel extends StatelessWidget {
-  const _EvaluationConceptsPanel();
+  const _EvaluationConceptsPanel({required this.concepts});
 
-  static const _concepts = [
-    ('Opportunity Cost', 'Good', WicaraColors.accentMint),
-    ('Macro vs. Micro Economics', 'Strong', WicaraColors.accentMint),
-    ('Supply and Demand', 'Good', WicaraColors.accentMint),
-    ('Market Equilibrium', 'Review', WicaraColors.accentAmber),
-    ('Elasticity', 'Review', WicaraColors.accentAmber),
-  ];
+  final List<ReviewedConcept> concepts;
 
   @override
   Widget build(BuildContext context) {
@@ -1729,18 +2264,66 @@ class _EvaluationConceptsPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          for (final concept in _concepts) ...[
-            _ConceptResultTile(
-              title: concept.$1,
-              status: concept.$2,
-              statusColor: concept.$3,
+          if (concepts.isEmpty)
+            const _ConceptResultTile(
+              title: 'No concepts reviewed yet',
+              status: 'Pending',
+              statusColor: WicaraColors.muted,
             ),
-            if (concept != _concepts.last) const SizedBox(height: 8),
+          for (final concept in concepts) ...[
+            _ConceptResultTile(
+              title: concept.title,
+              status: concept.statusLabel,
+              statusColor: _conceptStatusColor(concept.statusLabel),
+            ),
+            if (concept != concepts.last) const SizedBox(height: 8),
           ],
         ],
       ),
     );
   }
+}
+
+Color _conceptStatusColor(String status) {
+  return switch (status.toLowerCase()) {
+    'strong' || 'good' => WicaraColors.accentMint,
+    'review' => WicaraColors.accentAmber,
+    _ => WicaraColors.primaryDeep,
+  };
+}
+
+String _languageCode(String language) {
+  return switch (language.trim().toLowerCase()) {
+    'id' || 'indonesian' || 'bahasa indonesia' => 'ID',
+    'ms' || 'bahasa melayu' => 'MS',
+    'fil' || 'filipino' => 'FIL',
+    'vi' || 'vietnamese' => 'VI',
+    _ => 'EN',
+  };
+}
+
+IconData _actionIcon(String actionType) {
+  return switch (actionType.toLowerCase()) {
+    'review' => Icons.calendar_today_rounded,
+    'deepen' => Icons.event_note_rounded,
+    'practice' => Icons.assignment_outlined,
+    'continue_learning' => Icons.trending_up_rounded,
+    _ => Icons.arrow_forward_rounded,
+  };
+}
+
+Color _actionColor(String actionType) {
+  return switch (actionType.toLowerCase()) {
+    'review' => WicaraColors.accentAmber,
+    'deepen' => WicaraColors.accentMint,
+    'practice' => WicaraColors.secondary,
+    'continue_learning' => WicaraColors.primaryDeep,
+    _ => WicaraColors.secondary,
+  };
+}
+
+Color _actionBackground(String actionType) {
+  return _actionColor(actionType).withValues(alpha: 0.14);
 }
 
 class _ConceptResultTile extends StatelessWidget {
@@ -1816,7 +2399,13 @@ class _ConceptResultTile extends StatelessWidget {
 }
 
 class _SpacedRepetitionImpactPanel extends StatelessWidget {
-  const _SpacedRepetitionImpactPanel();
+  const _SpacedRepetitionImpactPanel({
+    required this.impact,
+    required this.nextReview,
+  });
+
+  final SpacedRepetitionImpact impact;
+  final DailyEvaluationNextReview nextReview;
 
   @override
   Widget build(BuildContext context) {
@@ -1827,11 +2416,15 @@ class _SpacedRepetitionImpactPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(
-                'Spaced repetition impact',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+              Expanded(
+                child: Text(
+                  'Spaced repetition impact',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               const SizedBox(width: 7),
@@ -1844,7 +2437,9 @@ class _SpacedRepetitionImpactPanel extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           Text(
-            "You've strengthened your memory.",
+            impact.summary.isEmpty
+                ? "You've strengthened your memory."
+                : impact.summary,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: WicaraColors.muted,
               fontSize: 11,
@@ -1853,20 +2448,22 @@ class _SpacedRepetitionImpactPanel extends StatelessWidget {
           ),
           const SizedBox(height: 13),
           Row(
-            children: const [
+            children: [
               Expanded(
                 child: _ImpactMetric(
-                  value: '+23%',
+                  value: '+${impact.retentionLiftPercent}%',
                   label: 'Retention Lift',
                   icon: Icons.arrow_upward_rounded,
                   iconColor: WicaraColors.primary,
                 ),
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Expanded(
                 child: _ImpactMetric(
-                  value: '7',
-                  label: 'Days Until Next Review',
+                  value: '${impact.daysUntilNextReview}',
+                  label: nextReview.label.isEmpty
+                      ? 'Days Until Next Review'
+                      : nextReview.label,
                 ),
               ),
             ],
@@ -1937,10 +2534,137 @@ class _ImpactMetric extends StatelessWidget {
   }
 }
 
+class _RecommendedNextActionsPanel extends StatelessWidget {
+  const _RecommendedNextActionsPanel({
+    required this.actions,
+    required this.onActionSelected,
+  });
+
+  final List<RecommendedNextAction> actions;
+  final ValueChanged<RecommendedNextAction> onActionSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = actions.isEmpty
+        ? const [
+            RecommendedNextAction(
+              title: 'Continue learning',
+              actionType: 'continue_learning',
+              reason: 'Go to your learning path.',
+            ),
+          ]
+        : actions;
+
+    return _Panel(
+      padding: const EdgeInsets.fromLTRB(14, 15, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Recommended next actions',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 13),
+          for (final action in rows) ...[
+            _ActionRecommendationTile(
+              action: action,
+              onSelected: onActionSelected,
+            ),
+            if (action != rows.last) const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionRecommendationTile extends StatelessWidget {
+  const _ActionRecommendationTile({
+    required this.action,
+    required this.onSelected,
+  });
+
+  final RecommendedNextAction action;
+  final ValueChanged<RecommendedNextAction> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(11),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(11),
+        onTap: () => onSelected(action),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(11, 10, 10, 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: WicaraColors.line),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: WicaraColors.secondarySoft,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  _actionIcon(action.actionType),
+                  color: WicaraColors.secondary,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      action.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: WicaraColors.text,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      action.reason,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: WicaraColors.muted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: WicaraColors.softMuted,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BackHomeButton extends StatelessWidget {
-  const _BackHomeButton({required this.onPressed});
+  const _BackHomeButton({required this.onPressed, this.label = 'Back to Home'});
 
   final VoidCallback onPressed;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -1966,7 +2690,7 @@ class _BackHomeButton extends StatelessWidget {
             height: 47,
             child: Center(
               child: Text(
-                copy.backToHomeLabel,
+                label.isNotEmpty ? label : copy.backToHomeLabel,
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w600,
@@ -4225,6 +4949,7 @@ class _SubjectSelectionSheetState extends State<_SubjectSelectionSheet> {
 class _ProgressHub extends StatelessWidget {
   const _ProgressHub({
     required this.constraints,
+    required this.homeRepository,
     required this.curriculumRepository,
     required this.onBack,
     required this.showLearningReport,
@@ -4233,9 +4958,11 @@ class _ProgressHub extends StatelessWidget {
     required this.onCloseLearningReport,
     required this.onOpenKnowledgeMap,
     required this.onCloseKnowledgeMap,
+    required this.onRecommendationSelected,
   });
 
   final BoxConstraints constraints;
+  final HomeRepository homeRepository;
   final CurriculumRepository curriculumRepository;
   final VoidCallback onBack;
   final bool showLearningReport;
@@ -4244,6 +4971,7 @@ class _ProgressHub extends StatelessWidget {
   final VoidCallback onCloseLearningReport;
   final VoidCallback onOpenKnowledgeMap;
   final VoidCallback onCloseKnowledgeMap;
+  final ValueChanged<RecommendedNextAction> onRecommendationSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -4251,7 +4979,9 @@ class _ProgressHub extends StatelessWidget {
     if (showLearningReport) {
       return _LearningReportDetail(
         constraints: constraints,
+        homeRepository: homeRepository,
         onBack: onCloseLearningReport,
+        onRecommendationSelected: onRecommendationSelected,
       );
     }
     if (showKnowledgeMap) {
@@ -4286,7 +5016,10 @@ class _ProgressHub extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 28),
-            _LearningReportOption(onOpen: onOpenLearningReport),
+            _LearningReportOption(
+              homeRepository: homeRepository,
+              onOpen: onOpenLearningReport,
+            ),
             const SizedBox(height: 22),
             _KnowledgeMapOption(onOpen: onOpenKnowledgeMap),
           ],
@@ -4296,88 +5029,236 @@ class _ProgressHub extends StatelessWidget {
   }
 }
 
-class _LearningReportOption extends StatelessWidget {
-  const _LearningReportOption({required this.onOpen});
+class _LearningReportOption extends StatefulWidget {
+  const _LearningReportOption({
+    required this.homeRepository,
+    required this.onOpen,
+  });
 
+  final HomeRepository homeRepository;
   final VoidCallback onOpen;
+
+  @override
+  State<_LearningReportOption> createState() => _LearningReportOptionState();
+}
+
+class _LearningReportOptionState extends State<_LearningReportOption> {
+  late Future<WeeklyLearningReport> _reportFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _reportFuture = _fetchCurrentWeekReport();
+  }
+
+  @override
+  void didUpdateWidget(covariant _LearningReportOption oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.homeRepository != widget.homeRepository) {
+      _reportFuture = _fetchCurrentWeekReport();
+    }
+  }
+
+  Future<WeeklyLearningReport> _fetchCurrentWeekReport() {
+    final range = _reportRangeFor(_ReportRangeOption.thisWeek, DateTime.now());
+    return widget.homeRepository.fetchWeeklyLearningReport(
+      start: range.start,
+      end: range.end,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final copy = _HomeCopyScope.of(context);
     return _ProgressOptionPanel(
-      onTap: onOpen,
+      onTap: widget.onOpen,
       icon: Icons.analytics_outlined,
       iconColor: WicaraColors.primaryDeep,
       iconBackground: WicaraColors.speechBlue,
       title: copy.learningReportLabel,
       subtitle: copy.learningReportDescription,
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'May 12 - May 18, 2025',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: WicaraColors.muted,
-                    fontWeight: FontWeight.w600,
-                  ),
+      child: FutureBuilder<WeeklyLearningReport>(
+        future: _reportFuture,
+        builder: (context, snapshot) {
+          final report = snapshot.data;
+          if (report != null) {
+            return _LearningReportPreview(report: report);
+          }
+          if (snapshot.hasError) {
+            return const _LearningReportPreviewState(
+              label: 'Report unavailable',
+              badge: 'Open detail',
+              message: 'Open the report to retry loading backend data.',
+            );
+          }
+          return const _LearningReportPreviewState(
+            label: 'Loading current week',
+            badge: 'Syncing',
+            message: 'Fetching learning performance from backend attempts.',
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _LearningReportPreview extends StatelessWidget {
+  const _LearningReportPreview({required this.report});
+
+  final WeeklyLearningReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final fixed =
+        report.gapMetrics['fixed'] ??
+        GapMetric(
+          count: report.fixedGaps,
+          weeklyDelta: report.fixedGapsDelta,
+          deltaLabel: '+${report.fixedGapsDelta} this week',
+        );
+    final remaining =
+        report.gapMetrics['remaining'] ??
+        GapMetric(
+          count: report.remainingGaps,
+          weeklyDelta: report.remainingGapsDelta,
+          deltaLabel: '${report.remainingGapsDelta} this week',
+        );
+    final groups = report.performanceGroups.take(3).toList(growable: false);
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                report.rangeLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: WicaraColors.muted,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(width: 12),
-              _SoftBadge(copy.fixedShortLabel),
-            ],
+            ),
+            const SizedBox(width: 12),
+            _SoftBadge(fixed.deltaLabel),
+          ],
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          height: 112,
+          child: groups.isEmpty
+              ? const _LearningReportPreviewState(
+                  label: 'No performance data yet',
+                  badge: 'Start',
+                  message: 'Take a daily evaluation to build the graph.',
+                  compact: true,
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    for (var index = 0; index < groups.length; index++) ...[
+                      _ReportBarGroup(
+                        label: groups[index].label,
+                        before: groups[index].preTestRatio,
+                        after: groups[index].postTestRatio,
+                      ),
+                      if (index < groups.length - 1) const SizedBox(width: 18),
+                    ],
+                  ],
+                ),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: _ReportMetric(
+                label: 'Fixed gaps',
+                value: '${fixed.count}',
+                delta: fixed.deltaLabel,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _ReportMetric(
+                label: 'Remaining gaps',
+                value: '${remaining.count}',
+                delta: remaining.deltaLabel,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _LearningReportPreviewState extends StatelessWidget {
+  const _LearningReportPreviewState({
+    required this.label,
+    required this.badge,
+    required this.message,
+    this.compact = false,
+  });
+
+  final String label;
+  final String badge;
+  final String message;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    if (compact) {
+      return Center(
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: WicaraColors.muted,
+            fontWeight: FontWeight.w600,
           ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 112,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                _ReportBarGroup(
-                  label: copy.overallLabel,
-                  before: 0.72,
-                  after: 0.88,
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: WicaraColors.muted,
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(width: 18),
-                _ReportBarGroup(
-                  label: copy.applicationLabel,
-                  before: 0.65,
-                  after: 0.85,
-                ),
-                const SizedBox(width: 18),
-                _ReportBarGroup(
-                  label: copy.analysisLabel,
-                  before: 0.58,
-                  after: 0.82,
-                ),
-              ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            _SoftBadge(badge),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+          decoration: BoxDecoration(
+            color: WicaraColors.pageBackground,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: WicaraColors.line),
+          ),
+          child: Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: WicaraColors.muted,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: _ReportMetric(
-                  label: copy.fixedGapsLabel,
-                  value: '12',
-                  delta: copy.thisWeekFixedDelta,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _ReportMetric(
-                  label: copy.remainingGapsLabel,
-                  value: '5',
-                  delta: copy.thisWeekRemainingDelta,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -4385,81 +5266,129 @@ class _LearningReportOption extends StatelessWidget {
 class _LearningReportDetail extends StatefulWidget {
   const _LearningReportDetail({
     required this.constraints,
+    required this.homeRepository,
     required this.onBack,
+    required this.onRecommendationSelected,
   });
 
   final BoxConstraints constraints;
+  final HomeRepository homeRepository;
   final VoidCallback onBack;
+  final ValueChanged<RecommendedNextAction> onRecommendationSelected;
 
   @override
   State<_LearningReportDetail> createState() => _LearningReportDetailState();
 }
 
 class _LearningReportDetailState extends State<_LearningReportDetail> {
-  int _selectedWeek = 3;
+  _ReportRangeOption _selectedRange = _ReportRangeOption.thisWeek;
+  late Future<WeeklyLearningReport> _reportFuture;
 
-  static const _weeks = [
-    _WeeklyReportData(
-      range: 'Apr 21 - Apr 27',
-      score: 74,
-      fixed: 6,
-      remaining: 11,
-      retention: 16,
-      overall: 0.72,
-      application: 0.64,
-      analysis: 0.58,
-      concepts: 'Limits, graph reading',
-    ),
-    _WeeklyReportData(
-      range: 'Apr 28 - May 4',
-      score: 79,
-      fixed: 8,
-      remaining: 9,
-      retention: 18,
-      overall: 0.76,
-      application: 0.69,
-      analysis: 0.63,
-      concepts: 'Derivatives, slope',
-    ),
-    _WeeklyReportData(
-      range: 'May 5 - May 11',
-      score: 83,
-      fixed: 10,
-      remaining: 7,
-      retention: 21,
-      overall: 0.81,
-      application: 0.76,
-      analysis: 0.71,
-      concepts: 'Optimization, rates',
-    ),
-    _WeeklyReportData(
-      range: 'May 12 - May 18',
-      score: 88,
-      fixed: 12,
-      remaining: 5,
-      retention: 23,
-      overall: 0.88,
-      application: 0.85,
-      analysis: 0.82,
-      concepts: 'Chain rule, review gaps',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _reportFuture = _fetchSelectedReport();
+  }
+
+  void _retryReport() {
+    setState(() {
+      _reportFuture = _fetchSelectedReport();
+    });
+  }
+
+  Future<WeeklyLearningReport> _fetchSelectedReport() {
+    final range = _reportRangeFor(_selectedRange, DateTime.now());
+    return widget.homeRepository.fetchWeeklyLearningReport(
+      start: range.start,
+      end: range.end,
+    );
+  }
+
+  void _selectRange(_ReportRangeOption option) {
+    setState(() {
+      _selectedRange = option;
+      _reportFuture = _fetchSelectedReport();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    return FutureBuilder<WeeklyLearningReport>(
+      future: _reportFuture,
+      builder: (context, snapshot) {
+        final report = snapshot.data;
+        if (report != null) {
+          return _LearningReportContent(
+            constraints: widget.constraints,
+            report: report,
+            onBack: widget.onBack,
+            selectedRange: _selectedRange,
+            onRangeSelected: _selectRange,
+            onRecommendationSelected: widget.onRecommendationSelected,
+          );
+        }
+        if (snapshot.hasError) {
+          return _DashboardStatePage(
+            constraints: widget.constraints,
+            title: 'Learning Report unavailable',
+            message: snapshot.error.toString(),
+            actionLabel: 'Try again',
+            onAction: _retryReport,
+          );
+        }
+        return _DashboardStatePage(
+          constraints: widget.constraints,
+          title: 'Loading Learning Report',
+          message: 'Fetching weekly gap and recommendation data.',
+        );
+      },
+    );
+  }
+}
+
+class _LearningReportContent extends StatelessWidget {
+  const _LearningReportContent({
+    required this.constraints,
+    required this.report,
+    required this.onBack,
+    required this.selectedRange,
+    required this.onRangeSelected,
+    required this.onRecommendationSelected,
+  });
+
+  final BoxConstraints constraints;
+  final WeeklyLearningReport report;
+  final VoidCallback onBack;
+  final _ReportRangeOption selectedRange;
+  final ValueChanged<_ReportRangeOption> onRangeSelected;
+  final ValueChanged<RecommendedNextAction> onRecommendationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final fixed =
+        report.gapMetrics['fixed'] ??
+        GapMetric(
+          count: report.fixedGaps,
+          weeklyDelta: report.fixedGapsDelta,
+          deltaLabel: '+${report.fixedGapsDelta} this week',
+        );
+    final remaining =
+        report.gapMetrics['remaining'] ??
+        GapMetric(
+          count: report.remainingGaps,
+          weeklyDelta: report.remainingGapsDelta,
+          deltaLabel: '${report.remainingGapsDelta} this week',
+        );
     final copy = _HomeCopyScope.of(context);
-    final selected = _weeks[_selectedWeek];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 18, 28, 118),
       child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minHeight: widget.constraints.maxHeight - 136,
-        ),
+        constraints: BoxConstraints(minHeight: constraints.maxHeight - 136),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _QueueHeader(onBack: widget.onBack),
+            _QueueHeader(onBack: onBack),
             const SizedBox(height: 38),
             Row(
               children: [
@@ -4485,100 +5414,534 @@ class _LearningReportDetailState extends State<_LearningReportDetail> {
               ),
             ),
             const SizedBox(height: 24),
-            _Panel(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    selected.range,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    selected.concepts,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: WicaraColors.muted,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 180),
-                    child: _WeeklyReportSnapshot(
-                      key: ValueKey(selected.range),
-                      data: selected,
-                    ),
-                  ),
-                ],
+            Center(
+              child: _DateRangePill(
+                label: report.rangeLabel,
+                selectedRange: selectedRange,
+                onRangeSelected: onRangeSelected,
               ),
             ),
             const SizedBox(height: 18),
+            _ReportPerformancePanel(report: report),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: _ReportMetric(
+                    label: copy.fixedGapsLabel,
+                    value: '${fixed.count}',
+                    delta: fixed.deltaLabel,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ReportMetric(
+                    label: copy.remainingGapsLabel,
+                    value: '${remaining.count}',
+                    delta: remaining.deltaLabel,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            _UnlockedThisWeekCard(summary: report.unlockedThisWeek),
+            const SizedBox(height: 18),
+            _UpcomingRecommendationsPanel(
+              recommendations: report.upcomingRecommendations,
+              onRecommendationSelected: onRecommendationSelected,
+            ),
+            const SizedBox(height: 18),
+            _ConsistencySummaryCard(summary: report.consistencySummary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DateRangePill extends StatelessWidget {
+  const _DateRangePill({
+    required this.label,
+    required this.selectedRange,
+    required this.onRangeSelected,
+  });
+
+  final String label;
+  final _ReportRangeOption selectedRange;
+  final ValueChanged<_ReportRangeOption> onRangeSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_ReportRangeOption>(
+      initialValue: selectedRange,
+      onSelected: onRangeSelected,
+      itemBuilder: (context) => [
+        for (final option in _ReportRangeOption.values)
+          PopupMenuItem(
+            value: option,
+            child: Text(_reportRangeOptionLabel(option)),
+          ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: WicaraColors.line),
+          boxShadow: [
+            BoxShadow(
+              color: WicaraColors.shadowBlue.withValues(alpha: 0.12),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: WicaraColors.ink,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: WicaraColors.ink,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReportDateRange {
+  const _ReportDateRange({required this.start, required this.end});
+
+  final DateTime start;
+  final DateTime end;
+}
+
+_ReportDateRange _reportRangeFor(_ReportRangeOption option, DateTime now) {
+  final today = DateTime(now.year, now.month, now.day);
+  final thisMonday = today.subtract(Duration(days: today.weekday - 1));
+  return switch (option) {
+    _ReportRangeOption.thisWeek => _ReportDateRange(
+      start: thisMonday,
+      end: thisMonday.add(const Duration(days: 6)),
+    ),
+    _ReportRangeOption.lastWeek => _ReportDateRange(
+      start: thisMonday.subtract(const Duration(days: 7)),
+      end: thisMonday.subtract(const Duration(days: 1)),
+    ),
+    _ReportRangeOption.last4Weeks => _ReportDateRange(
+      start: today.subtract(const Duration(days: 27)),
+      end: today,
+    ),
+  };
+}
+
+String _reportRangeOptionLabel(_ReportRangeOption option) {
+  return switch (option) {
+    _ReportRangeOption.thisWeek => 'This week',
+    _ReportRangeOption.lastWeek => 'Last week',
+    _ReportRangeOption.last4Weeks => 'Last 4 weeks',
+  };
+}
+
+class _ReportPerformancePanel extends StatelessWidget {
+  const _ReportPerformancePanel({required this.report});
+
+  final WeeklyLearningReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = report.performanceGroups;
+
+    return _Panel(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Learning performance',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Pre-test vs Post-test',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: WicaraColors.muted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              _ReportLegendDot(
+                label: 'Pre-test',
+                color: WicaraColors.primaryLight,
+              ),
+              SizedBox(width: 18),
+              _ReportLegendDot(
+                label: 'Post-test',
+                color: WicaraColors.secondary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          if (groups.isEmpty)
+            const _EmptyReportPerformanceState()
+          else
             SizedBox(
-              height: 102,
+              height: 144,
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  for (var index = 0; index < _weeks.length; index++) ...[
-                    Expanded(
-                      child: _WeeklyHoverTile(
-                        data: _weeks[index],
-                        weekNumber: index + 1,
-                        isSelected: index == _selectedWeek,
-                        onSelected: () => setState(() => _selectedWeek = index),
-                      ),
+                  for (var index = 0; index < groups.length; index++) ...[
+                    _ReportBarGroup(
+                      label: groups[index].label,
+                      before: groups[index].preTestRatio,
+                      after: groups[index].postTestRatio,
                     ),
-                    if (index < _weeks.length - 1) const SizedBox(width: 9),
+                    if (index < groups.length - 1) const SizedBox(width: 18),
                   ],
                 ],
               ),
             ),
-            const SizedBox(height: 18),
-            _Panel(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    copy.skillGrowthLabel,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyReportPerformanceState extends StatelessWidget {
+  const _EmptyReportPerformanceState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+      decoration: BoxDecoration(
+        color: WicaraColors.pageBackground,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: WicaraColors.line),
+      ),
+      child: Text(
+        'No assessment attempts in this range yet. Take a daily evaluation to build this graph.',
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: WicaraColors.muted,
+          fontWeight: FontWeight.w600,
+          height: 1.35,
+        ),
+      ),
+    );
+  }
+}
+
+class _ReportLegendDot extends StatelessWidget {
+  const _ReportLegendDot({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: WicaraColors.muted,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _UnlockedThisWeekCard extends StatelessWidget {
+  const _UnlockedThisWeekCard({required this.summary});
+
+  final UnlockedConceptSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final concepts = summary.concepts.take(5).toList(growable: false);
+    return _Panel(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Unlocked this week',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                   ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    height: 124,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        _ReportBarGroup(
-                          label: copy.overallLabel,
-                          before: math.max(selected.overall - 0.16, 0.18),
-                          after: selected.overall,
-                        ),
-                        const SizedBox(width: 18),
-                        _ReportBarGroup(
-                          label: copy.applicationLabel,
-                          before: math.max(selected.application - 0.2, 0.18),
-                          after: selected.application,
-                        ),
-                        const SizedBox(width: 18),
-                        _ReportBarGroup(
-                          label: copy.analysisLabel,
-                          before: math.max(selected.analysis - 0.24, 0.18),
-                          after: selected.analysis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
+              const Icon(
+                Icons.person_outline_rounded,
+                color: WicaraColors.primaryDeep,
+                size: 20,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '${summary.count}',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontSize: 32,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            'New concepts',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: WicaraColors.muted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (concepts.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final concept in concepts)
+                  _UnlockedConceptChip(label: concept),
+              ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _UnlockedConceptChip extends StatelessWidget {
+  const _UnlockedConceptChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: WicaraColors.speechBlue,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: WicaraColors.primaryDeep,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
         ),
+      ),
+    );
+  }
+}
+
+class _UpcomingRecommendationsPanel extends StatelessWidget {
+  const _UpcomingRecommendationsPanel({
+    required this.recommendations,
+    required this.onRecommendationSelected,
+  });
+
+  final List<RecommendedNextAction> recommendations;
+  final ValueChanged<RecommendedNextAction> onRecommendationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = recommendations.isEmpty
+        ? const [
+            RecommendedNextAction(
+              title: 'Review due concepts',
+              actionType: 'review',
+              reason: 'Due this week',
+            ),
+          ]
+        : recommendations;
+    return _Panel(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Upcoming recommendations',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 14),
+          for (final recommendation in rows) ...[
+            _ReportRecommendationTile(
+              recommendation: recommendation,
+              onSelected: onRecommendationSelected,
+            ),
+            if (recommendation != rows.last) const SizedBox(height: 9),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ReportRecommendationTile extends StatelessWidget {
+  const _ReportRecommendationTile({
+    required this.recommendation,
+    required this.onSelected,
+  });
+
+  final RecommendedNextAction recommendation;
+  final ValueChanged<RecommendedNextAction> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(13),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(13),
+        onTap: () => onSelected(recommendation),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(11, 10, 9, 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: WicaraColors.line),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _actionBackground(recommendation.actionType),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  _actionIcon(recommendation.actionType),
+                  color: _actionColor(recommendation.actionType),
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      recommendation.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: WicaraColors.text,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      recommendation.dueLabel ?? recommendation.reason,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: WicaraColors.muted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: WicaraColors.softMuted,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConsistencySummaryCard extends StatelessWidget {
+  const _ConsistencySummaryCard({required this.summary});
+
+  final ConsistencySummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF1F4FF), Color(0xFFF6EFFF)],
+        ),
+        borderRadius: BorderRadius.circular(17),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  summary.title,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: WicaraColors.secondaryDeep,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  summary.narrative,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: WicaraColors.text,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          const Text(
+            'W',
+            style: TextStyle(
+              color: WicaraColors.secondaryLight,
+              fontSize: 34,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -4609,7 +5972,7 @@ class _WeeklyReportData {
 }
 
 class _WeeklyReportSnapshot extends StatelessWidget {
-  const _WeeklyReportSnapshot({required this.data, super.key});
+  const _WeeklyReportSnapshot({required this.data});
 
   final _WeeklyReportData data;
 
@@ -4762,6 +6125,7 @@ class _KnowledgeMapDetailState extends State<_KnowledgeMapDetail> {
   bool _isLoadingCurriculum = true;
   bool _isLoadingMoreSections = false;
   bool _isUsingFallbackGraph = true;
+  int _curriculumRequestSerial = 0;
 
   @override
   void initState() {
@@ -4770,6 +6134,7 @@ class _KnowledgeMapDetailState extends State<_KnowledgeMapDetail> {
   }
 
   Future<void> _loadCurriculum() async {
+    final requestSerial = ++_curriculumRequestSerial;
     try {
       final subjects = await widget.curriculumRepository.fetchSubjects();
       final tabs = _subjectTabsFromApi(subjects);
@@ -4778,14 +6143,17 @@ class _KnowledgeMapDetailState extends State<_KnowledgeMapDetail> {
         subject: selectedSubjectCode,
       );
 
-      if (!mounted) {
+      if (!mounted || requestSerial != _curriculumRequestSerial) {
         return;
       }
 
       setState(() {
         _subjects = tabs;
         _selectedSubjectCode = selectedSubjectCode;
-        _graph = _knowledgeGraphFromApi(graph);
+        _graph = _knowledgeGraphFromApi(
+          graph,
+          focusSubjectCode: selectedSubjectCode,
+        );
         _visibleSectionCount = _initialVisibleSections;
         _selectedNode = null;
         _isUsingFallbackGraph = false;
@@ -4793,7 +6161,7 @@ class _KnowledgeMapDetailState extends State<_KnowledgeMapDetail> {
         _isLoadingMoreSections = false;
       });
     } catch (_) {
-      if (!mounted) {
+      if (!mounted || requestSerial != _curriculumRequestSerial) {
         return;
       }
 
@@ -4815,6 +6183,7 @@ class _KnowledgeMapDetailState extends State<_KnowledgeMapDetail> {
       return;
     }
 
+    final requestSerial = ++_curriculumRequestSerial;
     setState(() {
       _selectedSubjectCode = subject.code;
       _isLoadingCurriculum = true;
@@ -4828,12 +6197,12 @@ class _KnowledgeMapDetailState extends State<_KnowledgeMapDetail> {
         subject: subject.code,
       );
 
-      if (!mounted) {
+      if (!mounted || requestSerial != _curriculumRequestSerial) {
         return;
       }
 
       setState(() {
-        _graph = _knowledgeGraphFromApi(graph);
+        _graph = _knowledgeGraphFromApi(graph, focusSubjectCode: subject.code);
         _visibleSectionCount = _initialVisibleSections;
         _selectedNode = null;
         _isUsingFallbackGraph = false;
@@ -4841,7 +6210,7 @@ class _KnowledgeMapDetailState extends State<_KnowledgeMapDetail> {
         _isLoadingMoreSections = false;
       });
     } catch (_) {
-      if (!mounted) {
+      if (!mounted || requestSerial != _curriculumRequestSerial) {
         return;
       }
 
@@ -4895,6 +6264,7 @@ class _KnowledgeMapDetailState extends State<_KnowledgeMapDetail> {
 
   void _selectNode(_KnowledgeNode node) {
     setState(() => _selectedNode = node);
+    final copy = _HomeCopyScope.of(context);
     final fallback = _ConceptDetailData.fromGraph(_graph, node);
 
     showModalBottomSheet<void>(
@@ -4903,10 +6273,13 @@ class _KnowledgeMapDetailState extends State<_KnowledgeMapDetail> {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        return _ConceptDetailBottomSheet(
-          detailFuture: _loadConceptDetail(node, fallback),
-          fallback: fallback,
-          onClose: () => Navigator.of(sheetContext).pop(),
+        return _HomeCopyScope(
+          copy: copy,
+          child: _ConceptDetailBottomSheet(
+            detailFuture: _loadConceptDetail(node, fallback),
+            fallback: fallback,
+            onClose: () => Navigator.of(sheetContext).pop(),
+          ),
         );
       },
     ).whenComplete(() {
@@ -5022,36 +6395,84 @@ class _SubjectMapTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const spacing = 8.0;
-        final buttonWidth = (constraints.maxWidth - spacing) / 2;
-
-        return Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: WicaraColors.speechBlue,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: WicaraColors.primaryLight),
-          ),
-          child: Wrap(
-            spacing: spacing,
-            runSpacing: spacing,
-            alignment: WrapAlignment.center,
-            children: [
-              for (final subject in subjects)
-                SizedBox(
-                  width: buttonWidth,
-                  child: _SubjectMapTabButton(
-                    item: subject,
-                    isSelected: subject.code == selectedCode,
-                    onSelected: () => onSelected(subject),
-                  ),
-                ),
+    return SizedBox(
+      height: 36,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < subjects.length; index++) ...[
+              _SubjectMapTabButton(
+                item: subjects[index],
+                isSelected: subjects[index].code == selectedCode,
+                onSelected: () => onSelected(subjects[index]),
+              ),
+              if (index != subjects.length - 1) const SizedBox(width: 8),
             ],
-          ),
-        );
-      },
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SubjectMapTabButton extends StatelessWidget {
+  const _SubjectMapTabButton({
+    required this.item,
+    required this.isSelected,
+    required this.onSelected,
+  });
+
+  final _SubjectMapItem item;
+  final bool isSelected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = isSelected
+        ? item.color.withValues(alpha: 0.62)
+        : WicaraColors.primaryLight;
+    final textColor = item.isLocked
+        ? WicaraColors.softMuted
+        : isSelected
+        ? item.color
+        : WicaraColors.muted;
+
+    return InkWell(
+      onTap: item.isLocked ? null : onSelected,
+      borderRadius: BorderRadius.circular(999),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isSelected ? item.color.withValues(alpha: 0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (item.isLocked) ...[
+              Icon(Icons.lock_rounded, size: 12, color: textColor),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              item.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: textColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -5150,78 +6571,6 @@ class _SubjectMapItem {
   final String label;
   final Color color;
   final bool isLocked;
-}
-
-class _SubjectMapTabButton extends StatelessWidget {
-  const _SubjectMapTabButton({
-    required this.item,
-    required this.isSelected,
-    required this.onSelected,
-  });
-
-  final _SubjectMapItem item;
-  final bool isSelected;
-  final VoidCallback onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: item.isLocked ? null : onSelected,
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        height: 38,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? item.color.withValues(alpha: 0.55)
-                : Colors.transparent,
-          ),
-          boxShadow: [
-            if (isSelected)
-              BoxShadow(
-                color: item.color.withValues(alpha: 0.16),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-              ),
-          ],
-        ),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (item.isLocked) ...[
-                Icon(
-                  Icons.lock_rounded,
-                  size: 12,
-                  color: isSelected ? item.color : WicaraColors.softMuted,
-                ),
-                const SizedBox(width: 3),
-              ],
-              Text(
-                item.label,
-                maxLines: 1,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: item.isLocked
-                      ? WicaraColors.softMuted
-                      : isSelected
-                      ? item.color
-                      : WicaraColors.muted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _KnowledgeMapPreview extends StatelessWidget {
@@ -6605,6 +7954,7 @@ class _KnowledgeGraph {
     required this.nodes,
     required this.edges,
     this.topDown = false,
+    this.focusSubjectCode,
   });
 
   final String title;
@@ -6614,9 +7964,10 @@ class _KnowledgeGraph {
   final List<_KnowledgeNode> nodes;
   final List<_KnowledgeEdge> edges;
   final bool topDown;
+  final String? focusSubjectCode;
 
   List<_KnowledgeSection> get sections {
-    return [
+    final orderedSections = [
       for (var index = 0; index < groups.length; index++)
         _KnowledgeSection(
           label: groups[index].label,
@@ -6625,6 +7976,11 @@ class _KnowledgeGraph {
               .toList(),
         ),
     ];
+    final subjectCode = focusSubjectCode;
+    if (subjectCode == null || subjectCode.isEmpty) {
+      return orderedSections;
+    }
+    return _focusOrderedSections(orderedSections, subjectCode);
   }
 
   int _groupIndexFor(double x) {
@@ -6683,6 +8039,83 @@ class _KnowledgeSection {
 
   final String label;
   final List<_KnowledgeNode> nodes;
+}
+
+class _RankedKnowledgeSection {
+  const _RankedKnowledgeSection({
+    required this.section,
+    required this.rank,
+    required this.index,
+  });
+
+  final _KnowledgeSection section;
+  final int rank;
+  final int index;
+}
+
+List<_KnowledgeSection> _focusOrderedSections(
+  List<_KnowledgeSection> sections,
+  String subjectCode,
+) {
+  final rankedSections = <_RankedKnowledgeSection>[
+    for (var index = 0; index < sections.length; index++)
+      _RankedKnowledgeSection(
+        section: sections[index],
+        rank: _focusSectionRank(sections[index].label, subjectCode),
+        index: index,
+      ),
+  ];
+  rankedSections.sort((left, right) {
+    final rankCompare = left.rank.compareTo(right.rank);
+    if (rankCompare != 0) {
+      return rankCompare;
+    }
+    return left.index.compareTo(right.index);
+  });
+  return [for (final item in rankedSections) item.section];
+}
+
+int _focusSectionRank(String label, String subjectCode) {
+  final normalizedSubject = subjectCode.trim().toLowerCase();
+  final normalizedLabel = label.trim().toLowerCase();
+  final isIpas = normalizedLabel.startsWith('ipas');
+  final isIpa = normalizedLabel.startsWith('ipa terpadu');
+
+  return switch (normalizedSubject) {
+    'matematika' || 'math' => normalizedLabel.contains(' - ') ? 1 : 0,
+    'ipas' => isIpas || !normalizedLabel.contains(' - ') ? 0 : 1,
+    'ipa' =>
+      isIpa
+          ? 0
+          : isIpas
+          ? 1
+          : 2,
+    'fisika' =>
+      normalizedLabel.startsWith('fisika')
+          ? 0
+          : isIpa
+          ? 1
+          : isIpas
+          ? 2
+          : 3,
+    'kimia' =>
+      normalizedLabel.startsWith('kimia')
+          ? 0
+          : isIpa
+          ? 1
+          : isIpas
+          ? 2
+          : 3,
+    'biologi' =>
+      normalizedLabel.startsWith('biologi')
+          ? 0
+          : isIpa
+          ? 1
+          : isIpas
+          ? 2
+          : 3,
+    _ => 0,
+  };
 }
 
 class _MapGroup {
@@ -6778,7 +8211,10 @@ String _defaultSubjectCode(List<_SubjectMapItem> subjects) {
   return subjects.firstWhere((subject) => !subject.isLocked).code;
 }
 
-_KnowledgeGraph _knowledgeGraphFromApi(CurriculumKnowledgeMap graph) {
+_KnowledgeGraph _knowledgeGraphFromApi(
+  CurriculumKnowledgeMap graph, {
+  String? focusSubjectCode,
+}) {
   if (graph.groups.isEmpty || graph.nodes.isEmpty) {
     return _mathKnowledgeGraph;
   }
@@ -6806,6 +8242,7 @@ _KnowledgeGraph _knowledgeGraphFromApi(CurriculumKnowledgeMap graph) {
         ),
     ],
     edges: [for (final edge in graph.edges) _KnowledgeEdge(edge.from, edge.to)],
+    focusSubjectCode: focusSubjectCode,
   );
 }
 
