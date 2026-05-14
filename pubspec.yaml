@@ -60,6 +60,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - lib/src/assets/landingPage.png
     - lib/src/assets/iconText.png
     - lib/src/assets/waveIcon.png
     - lib/src/assets/learnIcon.png
