@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../app/app_routes.dart';
-import '../../../core/theme/wicara_colors.dart';
 import '../../../core/widgets/gradient_button.dart';
 
 class LandingPage extends StatelessWidget {
@@ -63,12 +62,6 @@ class LandingPage extends StatelessWidget {
                             ).pushNamed(AppRoutes.signIn),
                           ),
                           const SizedBox(height: _buttonGap),
-                          _SecondaryButton(
-                            label: 'I already have an account',
-                            onPressed: () => Navigator.of(
-                              context,
-                            ).pushNamed(AppRoutes.signIn),
-                          ),
                         ],
                       ),
                     ),
@@ -78,40 +71,6 @@ class LandingPage extends StatelessWidget {
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-class _SecondaryButton extends StatelessWidget {
-  const _SecondaryButton({required this.label, required this.onPressed});
-
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: WicaraColors.line, width: 1.4),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          foregroundColor: WicaraColors.ink,
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: WicaraColors.ink,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.2,
-          ),
-        ),
       ),
     );
   }

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../core/theme/wicara_theme.dart';
 import '../features/auth/domain/auth_repository.dart';
-import '../features/curriculum/domain/curriculum_repository.dart';
 import '../features/auth/presentation/sign_in_page.dart';
+import '../features/curriculum/domain/curriculum_repository.dart';
+import '../features/home/domain/home_repository.dart';
+import '../features/home/domain/home_snapshot.dart';
 import '../features/home/presentation/app_home_page.dart';
 import '../features/landing/presentation/landing_page.dart';
 import '../features/learning_goal/presentation/learning_goal_page.dart';
@@ -20,13 +22,17 @@ class WicaraApp extends StatefulWidget {
     required this.curriculumRepository,
     required this.onboardingRepository,
     required this.pretestRepository,
+    this.homeRepository,
+    this.initialRoute = AppRoutes.landing,
     super.key,
   });
 
   final AuthRepository authRepository;
   final CurriculumRepository curriculumRepository;
+  final HomeRepository? homeRepository;
   final OnboardingRepository onboardingRepository;
   final PretestRepository pretestRepository;
+  final String initialRoute;
 
   @override
   State<WicaraApp> createState() => _WicaraAppState();
@@ -72,7 +78,7 @@ class _WicaraAppState extends State<WicaraApp> {
       title: 'Wicara',
       debugShowCheckedModeBanner: false,
       theme: WicaraTheme.light(),
-      initialRoute: AppRoutes.landing,
+      initialRoute: widget.initialRoute,
       routes: {
         AppRoutes.landing: (_) => const LandingPage(),
         AppRoutes.signIn: (_) =>
@@ -82,10 +88,22 @@ class _WicaraAppState extends State<WicaraApp> {
         AppRoutes.learningGoal: (_) => const LearningGoalPage(),
         AppRoutes.pretest: (_) =>
             PretestPage(pretestRepository: widget.pretestRepository),
-        AppRoutes.home: (_) =>
-            AppHomePage(curriculumRepository: widget.curriculumRepository),
+        AppRoutes.home: (_) => AppHomePage(
+          curriculumRepository: widget.curriculumRepository,
+          homeRepository:
+              widget.homeRepository ?? const _UnavailableHomeRepository(),
+        ),
         AppRoutes.workspaceModules: (_) => const WorkspaceModulesPage(),
       },
     );
+  }
+}
+
+class _UnavailableHomeRepository implements HomeRepository {
+  const _UnavailableHomeRepository();
+
+  @override
+  Future<HomeSnapshot> fetchSnapshot() {
+    throw UnimplementedError('HomeRepository is not configured.');
   }
 }
