@@ -68,10 +68,20 @@ class _PretestPageState extends State<PretestPage> {
     setState(() => _isSubmitting = true);
     try {
       await widget.pretestRepository.submitAnswer(_answer);
+      final result = await widget.pretestRepository.submitReasoning(
+        PretestReasoning(
+          answer: _answer,
+          explanation: 'Auto-submitted from direct pretest answer flow.',
+          usedCanvas: false,
+        ),
+      );
       if (!mounted) {
         return;
       }
-      setState(() => _stage = _PretestStage.reasoning);
+      setState(() {
+        _knowledgeState = result;
+        _stage = _PretestStage.result;
+      });
     } on PretestException catch (error) {
       if (!mounted) {
         return;
@@ -300,6 +310,13 @@ class _QuestionStage extends StatelessWidget {
               onLeadingPressed: onClose,
             ),
             const SizedBox(height: 54),
+            Text(
+              'Pretest',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontSize: 25, height: 1.12),
+            ),
+            const SizedBox(height: 12),
             Text(
               question.stepLabel,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
@@ -620,7 +637,7 @@ class _ResultStage extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Based on your responses and reasoning.',
+              'Based on your responses.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: WicaraColors.muted,
                 fontWeight: FontWeight.w600,
