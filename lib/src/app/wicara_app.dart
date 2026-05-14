@@ -14,7 +14,7 @@ import '../features/pretest/presentation/pretest_page.dart';
 import '../features/workspace/presentation/workspace_modules_page.dart';
 import 'app_routes.dart';
 
-class WicaraApp extends StatelessWidget {
+class WicaraApp extends StatefulWidget {
   const WicaraApp({
     required this.authRepository,
     required this.curriculumRepository,
@@ -29,6 +29,44 @@ class WicaraApp extends StatelessWidget {
   final PretestRepository pretestRepository;
 
   @override
+  State<WicaraApp> createState() => _WicaraAppState();
+}
+
+class _WicaraAppState extends State<WicaraApp> {
+  static const _preloadedAssets = <String>[
+    'lib/src/assets/landingPage.png',
+    'lib/src/assets/iconText.png',
+    'lib/src/assets/waveIcon.png',
+    'lib/src/assets/learnIcon.png',
+    'lib/src/assets/progressIcon.png',
+    'lib/src/assets/profileIcon.png',
+    'lib/src/assets/onboardingIcon.png',
+    'lib/src/assets/pretestIcon.png',
+    'lib/src/assets/workspaceIcon.png',
+  ];
+
+  bool _didSchedulePreload = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didSchedulePreload) {
+      return;
+    }
+
+    _didSchedulePreload = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      for (final assetPath in _preloadedAssets) {
+        precacheImage(AssetImage(assetPath), context);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Wicara',
@@ -37,14 +75,15 @@ class WicaraApp extends StatelessWidget {
       initialRoute: AppRoutes.landing,
       routes: {
         AppRoutes.landing: (_) => const LandingPage(),
-        AppRoutes.signIn: (_) => SignInPage(authRepository: authRepository),
+        AppRoutes.signIn: (_) =>
+            SignInPage(authRepository: widget.authRepository),
         AppRoutes.onboarding: (_) =>
-            OnboardingPage(onboardingRepository: onboardingRepository),
+            OnboardingPage(onboardingRepository: widget.onboardingRepository),
         AppRoutes.learningGoal: (_) => const LearningGoalPage(),
         AppRoutes.pretest: (_) =>
-            PretestPage(pretestRepository: pretestRepository),
+            PretestPage(pretestRepository: widget.pretestRepository),
         AppRoutes.home: (_) =>
-            AppHomePage(curriculumRepository: curriculumRepository),
+            AppHomePage(curriculumRepository: widget.curriculumRepository),
         AppRoutes.workspaceModules: (_) => const WorkspaceModulesPage(),
       },
     );
