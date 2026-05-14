@@ -37,13 +37,31 @@ class AuthSession {
     required this.userId,
     required this.displayName,
     required this.role,
+    required this.onboardingCompleted,
     this.token,
   });
 
   final String userId;
   final String displayName;
   final AuthRole role;
+  final bool onboardingCompleted;
   final String? token;
+
+  AuthSession copyWith({
+    String? userId,
+    String? displayName,
+    AuthRole? role,
+    bool? onboardingCompleted,
+    String? token,
+  }) {
+    return AuthSession(
+      userId: userId ?? this.userId,
+      displayName: displayName ?? this.displayName,
+      role: role ?? this.role,
+      onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
+      token: token ?? this.token,
+    );
+  }
 }
 
 class AuthException implements Exception {

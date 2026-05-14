@@ -17,12 +17,13 @@ class ApiClient {
   Future<Map<String, dynamic>> getJson(
     String path, {
     Map<String, String>? queryParameters,
+    Map<String, String>? headers,
   }) async {
     final uri = Uri.parse(
       baseUrl,
     ).replace(path: path, queryParameters: queryParameters);
     final response = await _httpClient
-        .get(uri, headers: const {'Accept': 'application/json'})
+        .get(uri, headers: {'Accept': 'application/json', ...?headers})
         .timeout(const Duration(seconds: 4));
 
     if (response.statusCode < 200 || response.statusCode >= 300) {

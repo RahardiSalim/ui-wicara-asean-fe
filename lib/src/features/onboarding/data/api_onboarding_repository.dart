@@ -35,6 +35,9 @@ class ApiOnboardingRepository implements OnboardingRepository {
           'daily_study_time_label': profile.dailyStudyTime,
         },
       );
+      await _sessionStore.markOnboardingCompleted(
+        displayName: profile.fullName,
+      );
     } on ApiClientException catch (error) {
       throw OnboardingException(error.message);
     }

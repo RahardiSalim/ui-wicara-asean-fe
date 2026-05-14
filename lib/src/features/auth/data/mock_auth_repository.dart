@@ -17,6 +17,7 @@ class MockAuthRepository implements AuthRepository {
       userId: 'mock-learner-001',
       displayName: request.emailOrPhone.trim(),
       role: request.role,
+      onboardingCompleted: true,
       token: 'mock-session-token',
     );
   }
@@ -35,6 +36,7 @@ class MockAuthRepository implements AuthRepository {
           ? request.email.trim()
           : request.displayName.trim(),
       role: request.role,
+      onboardingCompleted: false,
       token: 'mock-registered-session-token',
     );
   }
@@ -47,6 +49,7 @@ class MockAuthRepository implements AuthRepository {
       userId: 'mock-google-learner',
       displayName: 'Google Learner',
       role: role,
+      onboardingCompleted: true,
       token: 'mock-google-session-token',
     );
   }

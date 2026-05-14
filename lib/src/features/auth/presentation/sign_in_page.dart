@@ -49,15 +49,19 @@ class _SignInPageState extends State<SignInPage> {
     setState(() => _isSubmitting = true);
     try {
       if (_mode == _AuthMode.login) {
-        await widget.authRepository.signIn(
+        final session = await widget.authRepository.signIn(
           SignInRequest(
             emailOrPhone: _emailController.text,
             password: _passwordController.text,
             role: _role,
           ),
         );
+        if (!mounted) {
+          return;
+        }
+        _openNextRoute(session);
       } else {
-        await widget.authRepository.register(
+        final session = await widget.authRepository.register(
           RegisterRequest(
             email: _emailController.text,
             password: _passwordController.text,
@@ -65,11 +69,11 @@ class _SignInPageState extends State<SignInPage> {
             role: _role,
           ),
         );
+        if (!mounted) {
+          return;
+        }
+        _openNextRoute(session);
       }
-      if (!mounted) {
-        return;
-      }
-      _openOnboarding();
     } on AuthException catch (error) {
       if (!mounted) {
         return;
@@ -85,11 +89,11 @@ class _SignInPageState extends State<SignInPage> {
   Future<void> _continueWithGoogle() async {
     setState(() => _isSubmitting = true);
     try {
-      await widget.authRepository.signInWithGoogle(role: _role);
+      final session = await widget.authRepository.signInWithGoogle(role: _role);
       if (!mounted) {
         return;
       }
-      _openOnboarding();
+      _openNextRoute(session);
     } on AuthException catch (error) {
       if (!mounted) {
         return;
@@ -110,10 +114,11 @@ class _SignInPageState extends State<SignInPage> {
       );
   }
 
-  void _openOnboarding() {
-    Navigator.of(
-      context,
-    ).pushNamedAndRemoveUntil(AppRoutes.onboarding, (route) => false);
+  void _openNextRoute(AuthSession session) {
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      session.onboardingCompleted ? AppRoutes.home : AppRoutes.onboarding,
+      (route) => false,
+    );
   }
 
   void _selectMode(_AuthMode mode) {

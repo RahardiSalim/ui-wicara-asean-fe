@@ -36,7 +36,7 @@ class ApiAuthRepository implements AuthRepository {
         },
       );
       final session = _toAuthSession(json, request.role);
-      _sessionStore.save(session);
+      await _sessionStore.save(session);
       return session;
     } on ApiClientException catch (error) {
       throw AuthException(error.message);
@@ -56,7 +56,7 @@ class ApiAuthRepository implements AuthRepository {
         },
       );
       final session = _toAuthSession(json, request.role);
-      _sessionStore.save(session);
+      await _sessionStore.save(session);
       return session;
     } on ApiClientException catch (error) {
       throw AuthException(error.message);
@@ -66,11 +66,6 @@ class ApiAuthRepository implements AuthRepository {
   @override
   Future<AuthSession> signInWithGoogle({required AuthRole role}) async {
     try {
-      if (kIsWeb && Uri.base.port != 3000) {
-        throw AuthException(
-          'Google login is configured for http://localhost:3000. Run Flutter with --web-port 3000.',
-        );
-      }
       final account = await _googleSignIn.signIn();
       if (account == null) {
         throw const AuthException('Google sign-in was cancelled.');
@@ -92,7 +87,7 @@ class ApiAuthRepository implements AuthRepository {
         },
       );
       final session = _toAuthSession(json, role);
-      _sessionStore.save(session);
+      await _sessionStore.save(session);
       return session;
     } on AuthException {
       rethrow;
@@ -108,6 +103,7 @@ class ApiAuthRepository implements AuthRepository {
       userId: (json['user_id'] ?? '').toString(),
       displayName: (json['display_name'] ?? '').toString(),
       role: role,
+      onboardingCompleted: json['onboarding_completed'] == true,
       token: (json['token'] ?? '').toString(),
     );
   }

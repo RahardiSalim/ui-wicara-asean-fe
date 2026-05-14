@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -5,8 +7,11 @@ import 'package:flutter/material.dart';
 import '../../../app/app_routes.dart';
 import '../../../core/theme/wicara_colors.dart';
 import '../../../core/widgets/gradient_button.dart';
+import '../../auth/data/auth_session_store.dart';
 import '../../curriculum/domain/curriculum_models.dart';
 import '../../curriculum/domain/curriculum_repository.dart';
+import '../domain/home_repository.dart';
+import '../domain/home_snapshot.dart';
 import '../../pretest/domain/pretest_models.dart';
 import '../../pretest/presentation/widgets/assessment_option_tile.dart';
 
@@ -15,9 +20,14 @@ enum _HomeTab { home, queue, progress, profile }
 enum _QueueTab { recommended, tracks, gallery }
 
 class AppHomePage extends StatefulWidget {
-  const AppHomePage({required this.curriculumRepository, super.key});
+  const AppHomePage({
+    required this.curriculumRepository,
+    required this.homeRepository,
+    super.key,
+  });
 
   final CurriculumRepository curriculumRepository;
+  final HomeRepository homeRepository;
 
   @override
   State<AppHomePage> createState() => _AppHomePageState();
@@ -33,6 +43,19 @@ class _AppHomePageState extends State<AppHomePage> {
   bool _showKnowledgeMap = false;
   int _dailyEvaluationIndex = 0;
   final Map<int, String> _dailyEvaluationAnswers = {};
+  late Future<HomeSnapshot> _homeSnapshotFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _homeSnapshotFuture = widget.homeRepository.fetchSnapshot();
+  }
+
+  void _retryHomeSnapshot() {
+    setState(() {
+      _homeSnapshotFuture = widget.homeRepository.fetchSnapshot();
+    });
+  }
 
   void _openQueue([_QueueTab tab = _QueueTab.recommended]) {
     setState(() {
@@ -230,21 +253,25 @@ class _AppHomePageState extends State<AppHomePage> {
     return switch (_selectedTab) {
       _HomeTab.home => _HomeDashboard(
         constraints: constraints,
+        snapshotFuture: _homeSnapshotFuture,
+        onRetrySnapshot: _retryHomeSnapshot,
         onOpenQueue: () => _openQueue(),
         onOpenTracks: () => _openQueue(_QueueTab.tracks),
         onContinueSession: _openWorkspaceModules,
-        onTakeDailyEvaluation: _openDailyEvaluation,
       ),
-      _HomeTab.queue => _LearningQueue(
+      _HomeTab.queue => _HomeSnapshotBuilder(
         constraints: constraints,
-        selectedTab: _queueTab,
-        onTabChanged: (tab) => setState(() => _queueTab = tab),
-        showGalleryDetail: _showGalleryDetail,
-        onOpenGalleryDetail: () => setState(() => _showGalleryDetail = true),
-        onCloseGalleryDetail: () => setState(() => _showGalleryDetail = false),
-        onCreateTrack: _openLearningGoal,
-        onOpenWorkspace: _openWorkspaceModules,
-        onBack: _openHome,
+        snapshotFuture: _homeSnapshotFuture,
+        onRetry: _retryHomeSnapshot,
+        builder: (snapshot) => _LearningQueue(
+          constraints: constraints,
+          snapshot: snapshot,
+          selectedTab: _queueTab,
+          onTabChanged: (tab) => setState(() => _queueTab = tab),
+          onCreateTrack: _openLearningGoal,
+          onOpenWorkspace: _openWorkspaceModules,
+          onBack: _openHome,
+        ),
       ),
       _HomeTab.progress => _ProgressHub(
         constraints: constraints,
@@ -257,28 +284,74 @@ class _AppHomePageState extends State<AppHomePage> {
         onOpenKnowledgeMap: _openKnowledgeMap,
         onCloseKnowledgeMap: _closeKnowledgeMap,
       ),
-      _HomeTab.profile => _ProfilePage(
+      _HomeTab.profile => _HomeSnapshotBuilder(
         constraints: constraints,
-        onBack: _openHome,
+        snapshotFuture: _homeSnapshotFuture,
+        onRetry: _retryHomeSnapshot,
+        builder: (snapshot) => _ProfilePage(
+          constraints: constraints,
+          snapshot: snapshot,
+          onBack: _openHome,
+        ),
       ),
     };
   }
 }
 
-class _HomeDashboard extends StatelessWidget {
-  const _HomeDashboard({
+class _HomeSnapshotBuilder extends StatelessWidget {
+  const _HomeSnapshotBuilder({
     required this.constraints,
-    required this.onOpenQueue,
-    required this.onOpenTracks,
-    required this.onContinueSession,
-    required this.onTakeDailyEvaluation,
+    required this.snapshotFuture,
+    required this.builder,
+    required this.onRetry,
   });
 
   final BoxConstraints constraints;
-  final VoidCallback onOpenQueue;
-  final VoidCallback onOpenTracks;
-  final VoidCallback onContinueSession;
-  final VoidCallback onTakeDailyEvaluation;
+  final Future<HomeSnapshot> snapshotFuture;
+  final Widget Function(HomeSnapshot snapshot) builder;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<HomeSnapshot>(
+      future: snapshotFuture,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return builder(snapshot.data!);
+        }
+        if (snapshot.hasError) {
+          return _DashboardStatePage(
+            constraints: constraints,
+            title: 'Dashboard unavailable',
+            message: snapshot.error.toString(),
+            actionLabel: 'Retry',
+            onAction: onRetry,
+          );
+        }
+        return _DashboardStatePage(
+          constraints: constraints,
+          title: 'Loading dashboard',
+          message: 'Fetching your profile from backend.',
+        );
+      },
+    );
+  }
+}
+
+class _DashboardStatePage extends StatelessWidget {
+  const _DashboardStatePage({
+    required this.constraints,
+    required this.title,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final BoxConstraints constraints;
+  final String title;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -289,11 +362,95 @@ class _HomeDashboard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 20),
+            const SizedBox(height: 20),
+            _SectionWordmark(
+              assetPath: 'lib/src/assets/waveIcon.png',
+              title: title,
+              iconSize: 84,
+              titleFontSize: 23,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: WicaraColors.muted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 22),
+              GradientButton(label: actionLabel!, onPressed: onAction!),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeDashboard extends StatelessWidget {
+  const _HomeDashboard({
+    required this.constraints,
+    required this.snapshotFuture,
+    required this.onRetrySnapshot,
+    required this.onOpenQueue,
+    required this.onOpenTracks,
+    required this.onContinueSession,
+  });
+
+  final BoxConstraints constraints;
+  final Future<HomeSnapshot> snapshotFuture;
+  final VoidCallback onRetrySnapshot;
+  final VoidCallback onOpenQueue;
+  final VoidCallback onOpenTracks;
+  final VoidCallback onContinueSession;
+
+  @override
+  Widget build(BuildContext context) {
+    return _HomeSnapshotBuilder(
+      constraints: constraints,
+      snapshotFuture: snapshotFuture,
+      onRetry: onRetrySnapshot,
+      builder: (snapshot) => _HomeDashboardContent(
+        constraints: constraints,
+        snapshot: snapshot,
+        onOpenQueue: onOpenQueue,
+        onOpenTracks: onOpenTracks,
+        onContinueSession: onContinueSession,
+      ),
+    );
+  }
+}
+
+class _HomeDashboardContent extends StatelessWidget {
+  const _HomeDashboardContent({
+    required this.constraints,
+    required this.snapshot,
+    required this.onOpenQueue,
+    required this.onOpenTracks,
+    required this.onContinueSession,
+  });
+
+  final BoxConstraints constraints;
+  final HomeSnapshot snapshot;
+  final VoidCallback onOpenQueue;
+  final VoidCallback onOpenTracks;
+  final VoidCallback onContinueSession;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(28, 18, 28, 118),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: constraints.maxHeight - 136),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 20),
               child: _SectionWordmark(
                 assetPath: 'lib/src/assets/waveIcon.png',
-                title: 'Welcome back,\nAisha',
+                title: 'Welcome back,\n${snapshot.firstName}',
                 iconSize: 84,
                 titleFontSize: 23,
               ),
@@ -310,13 +467,14 @@ class _HomeDashboard extends StatelessWidget {
             _ExploreTracksCard(onOpenTracks: onOpenTracks),
             const SizedBox(height: 20),
             _TodayQueueCard(
+              snapshot: snapshot,
               onViewAll: onOpenQueue,
               onContinue: onContinueSession,
             ),
             const SizedBox(height: 25),
-            const _StreakCard(),
+            _LearningSetupStatusCard(snapshot: snapshot),
             const SizedBox(height: 24),
-            _DailyEvaluationCard(onTakeEvaluation: onTakeDailyEvaluation),
+            const _DailyEvaluationUnavailableCard(),
           ],
         ),
       ),
@@ -327,22 +485,18 @@ class _HomeDashboard extends StatelessWidget {
 class _LearningQueue extends StatelessWidget {
   const _LearningQueue({
     required this.constraints,
+    required this.snapshot,
     required this.selectedTab,
     required this.onTabChanged,
-    required this.showGalleryDetail,
-    required this.onOpenGalleryDetail,
-    required this.onCloseGalleryDetail,
     required this.onCreateTrack,
     required this.onOpenWorkspace,
     required this.onBack,
   });
 
   final BoxConstraints constraints;
+  final HomeSnapshot snapshot;
   final _QueueTab selectedTab;
   final ValueChanged<_QueueTab> onTabChanged;
-  final bool showGalleryDetail;
-  final VoidCallback onOpenGalleryDetail;
-  final VoidCallback onCloseGalleryDetail;
   final VoidCallback onCreateTrack;
   final VoidCallback onOpenWorkspace;
   final VoidCallback onBack;
@@ -356,13 +510,6 @@ class _LearningQueue extends StatelessWidget {
       _QueueTab.gallery =>
         'Review the videos and summaries from your learning journey.',
     };
-
-    if (showGalleryDetail) {
-      return _GalleryVideoDetail(
-        constraints: constraints,
-        onBack: onCloseGalleryDetail,
-      );
-    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 14, 28, 118),
@@ -391,16 +538,179 @@ class _LearningQueue extends StatelessWidget {
             ),
             const SizedBox(height: 28),
             if (selectedTab == _QueueTab.recommended)
-              _RecommendedQueueContent(onContinue: onOpenWorkspace)
+              _BackendSubjectQueueContent(
+                snapshot: snapshot,
+                onContinue: onOpenWorkspace,
+              )
             else if (selectedTab == _QueueTab.tracks)
-              _TracksQueueContent(
+              _BackendTrackQueueContent(
+                snapshot: snapshot,
                 onCreateTrack: onCreateTrack,
                 onContinue: onOpenWorkspace,
-              ),
-            if (selectedTab == _QueueTab.gallery)
-              _GalleryQueueContent(onOpenDetail: onOpenGalleryDetail),
+              )
+            else if (selectedTab == _QueueTab.gallery)
+              const _BackendGalleryEmptyContent(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _BackendSubjectQueueContent extends StatelessWidget {
+  const _BackendSubjectQueueContent({
+    required this.snapshot,
+    required this.onContinue,
+  });
+
+  final HomeSnapshot snapshot;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final subjects = snapshot.selectedSubjects;
+    if (subjects.isEmpty) {
+      return const _BackendEmptyPanel(
+        icon: Icons.menu_book_outlined,
+        title: 'No selected subjects',
+        message: 'Update onboarding to choose the subjects for your queue.',
+      );
+    }
+
+    return Column(
+      children: [
+        for (final subject in subjects) ...[
+          _Panel(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: WicaraColors.speechBlue,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: const Icon(
+                    Icons.menu_book_outlined,
+                    color: WicaraColors.secondary,
+                    size: 21,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        subject,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        snapshot.gradeSummary,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: WicaraColors.muted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: onContinue,
+                  icon: const Icon(Icons.chevron_right_rounded),
+                  color: WicaraColors.secondary,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+}
+
+class _BackendTrackQueueContent extends StatelessWidget {
+  const _BackendTrackQueueContent({
+    required this.snapshot,
+    required this.onCreateTrack,
+    required this.onContinue,
+  });
+
+  final HomeSnapshot snapshot;
+  final VoidCallback onCreateTrack;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _BackendSubjectQueueContent(snapshot: snapshot, onContinue: onContinue),
+        const SizedBox(height: 8),
+        GradientButton(label: 'Create learning goal', onPressed: onCreateTrack),
+      ],
+    );
+  }
+}
+
+class _BackendGalleryEmptyContent extends StatelessWidget {
+  const _BackendGalleryEmptyContent();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _BackendEmptyPanel(
+      icon: Icons.video_library_outlined,
+      title: 'No saved gallery items',
+      message:
+          'Generated videos will appear here after a backend job saves them.',
+    );
+  }
+}
+
+class _BackendEmptyPanel extends StatelessWidget {
+  const _BackendEmptyPanel({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: WicaraColors.secondary, size: 28),
+          const SizedBox(height: 14),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            message,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: WicaraColors.muted,
+              fontWeight: FontWeight.w600,
+              height: 1.35,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -430,13 +740,25 @@ class _QueueHeader extends StatelessWidget {
 }
 
 class _TodayQueueCard extends StatelessWidget {
-  const _TodayQueueCard({required this.onViewAll, required this.onContinue});
+  const _TodayQueueCard({
+    required this.snapshot,
+    required this.onViewAll,
+    required this.onContinue,
+  });
 
+  final HomeSnapshot snapshot;
   final VoidCallback onViewAll;
   final VoidCallback onContinue;
 
   @override
   Widget build(BuildContext context) {
+    final glyphSource = snapshot.selectedSubjects.isEmpty
+        ? 'set'
+        : snapshot.selectedSubjects.first.trim();
+    final glyphText = glyphSource.length <= 3
+        ? glyphSource.toLowerCase()
+        : glyphSource.substring(0, 3).toLowerCase();
+
     return _Panel(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 19),
       child: Column(
@@ -478,10 +800,10 @@ class _TodayQueueCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _SoftBadge('Next up'),
+                    const _SoftBadge('From onboarding'),
                     const SizedBox(height: 11),
                     Text(
-                      'Limits from graphs',
+                      snapshot.subjectSummary,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontSize: 18,
                         height: 1.15,
@@ -489,7 +811,7 @@ class _TodayQueueCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Calculus I',
+                      snapshot.gradeSummary,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: WicaraColors.muted,
                         fontWeight: FontWeight.w600,
@@ -497,7 +819,9 @@ class _TodayQueueCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      'Estimated 18 min   •   Medium',
+                      snapshot.dailyStudyTime.isEmpty
+                          ? 'Daily study time not set'
+                          : snapshot.dailyStudyTime,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: WicaraColors.softMuted,
                         fontWeight: FontWeight.w600,
@@ -506,7 +830,7 @@ class _TodayQueueCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const _LessonGlyph(text: 'lim', size: 73),
+              _LessonGlyph(text: glyphText, size: 73),
             ],
           ),
           const SizedBox(height: 24),
@@ -584,18 +908,21 @@ class _ExploreTracksCard extends StatelessWidget {
   }
 }
 
-class _StreakCard extends StatelessWidget {
-  const _StreakCard();
+class _LearningSetupStatusCard extends StatelessWidget {
+  const _LearningSetupStatusCard({required this.snapshot});
+
+  final HomeSnapshot snapshot;
 
   @override
   Widget build(BuildContext context) {
+    final subjectCount = snapshot.selectedSubjects.length;
     return _Panel(
       padding: const EdgeInsets.fromLTRB(19, 18, 19, 18),
       child: Row(
         children: [
           const Icon(
-            Icons.local_fire_department_rounded,
-            color: WicaraColors.accentCoral,
+            Icons.verified_rounded,
+            color: WicaraColors.secondary,
             size: 28,
           ),
           const SizedBox(width: 13),
@@ -604,7 +931,9 @@ class _StreakCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Current streak',
+                  snapshot.onboardingCompleted
+                      ? 'Onboarding complete'
+                      : 'Onboarding incomplete',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: WicaraColors.text,
                     fontWeight: FontWeight.w600,
@@ -612,7 +941,7 @@ class _StreakCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '7 days',
+                  '$subjectCount selected subject${subjectCount == 1 ? '' : 's'}',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -621,7 +950,49 @@ class _StreakCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 166, child: _WeekDots()),
+        ],
+      ),
+    );
+  }
+}
+
+class _DailyEvaluationUnavailableCard extends StatelessWidget {
+  const _DailyEvaluationUnavailableCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      padding: const EdgeInsets.fromLTRB(20, 19, 20, 21),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Daily evaluation',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 11),
+          Text(
+            'No daily evaluation assigned yet.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: WicaraColors.muted,
+              fontWeight: FontWeight.w600,
+              height: 1.32,
+            ),
+          ),
+          const SizedBox(height: 20),
+          OutlinedButton(
+            onPressed: null,
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: const Text('No evaluation'),
+          ),
         ],
       ),
     );
@@ -2962,12 +3333,21 @@ class _ShortcutItem extends StatelessWidget {
 }
 
 class _ProfilePage extends StatelessWidget {
-  const _ProfilePage({required this.constraints, required this.onBack});
+  const _ProfilePage({
+    required this.constraints,
+    required this.snapshot,
+    required this.onBack,
+  });
 
   final BoxConstraints constraints;
+  final HomeSnapshot snapshot;
   final VoidCallback onBack;
 
-  void _logout(BuildContext context) {
+  Future<void> _logout(BuildContext context) async {
+    await authSessionStore.clear();
+    if (!context.mounted) {
+      return;
+    }
     Navigator.of(
       context,
     ).pushNamedAndRemoveUntil(AppRoutes.landing, (route) => false);
@@ -2998,51 +3378,57 @@ class _ProfilePage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 28),
-            const _ProfileHeaderCard(),
+            _ProfileHeaderCard(snapshot: snapshot),
             const SizedBox(height: 22),
-            const _ProfileSection(
+            _ProfileSection(
               title: 'Learning setup',
               children: [
                 _ProfileSettingTile(
                   icon: Icons.person_outline_rounded,
                   label: 'Full name',
-                  value: 'Aisyah Putri',
+                  value: snapshot.displayName,
                 ),
                 _ProfileSettingTile(
                   icon: Icons.public_rounded,
                   label: 'Country',
-                  value: 'Indonesia',
+                  value: snapshot.country.isEmpty
+                      ? 'Not set'
+                      : snapshot.country,
                 ),
                 _ProfileSettingTile(
                   icon: Icons.school_outlined,
                   label: 'Grade level',
-                  value: 'Grade 11 (SMA Kelas 2)',
+                  value: snapshot.gradeSummary,
                 ),
                 _ProfileSettingTile(
                   icon: Icons.language_rounded,
                   label: 'Language',
-                  value: 'Bahasa Indonesia',
+                  value: snapshot.preferredLanguage,
                 ),
               ],
             ),
             const SizedBox(height: 18),
-            const _ProfileSection(
+            _ProfileSection(
               title: 'Preferences',
               children: [
                 _ProfileSettingTile(
                   icon: Icons.menu_book_outlined,
                   label: 'Subjects',
-                  value: 'Math, Physics, Chemistry, Biology',
+                  value: snapshot.subjectSummary,
                 ),
                 _ProfileSettingTile(
                   icon: Icons.track_changes_rounded,
                   label: 'Study goal',
-                  value: 'Improve understanding',
+                  value: snapshot.studyGoal.isEmpty
+                      ? 'Not set'
+                      : snapshot.studyGoal,
                 ),
                 _ProfileSettingTile(
                   icon: Icons.schedule_rounded,
                   label: 'Daily study time',
-                  value: '30-60 minutes',
+                  value: snapshot.dailyStudyTime.isEmpty
+                      ? 'Not set'
+                      : snapshot.dailyStudyTime,
                 ),
               ],
             ),
@@ -3068,7 +3454,9 @@ class _ProfilePage extends StatelessWidget {
 }
 
 class _ProfileHeaderCard extends StatelessWidget {
-  const _ProfileHeaderCard();
+  const _ProfileHeaderCard({required this.snapshot});
+
+  final HomeSnapshot snapshot;
 
   @override
   Widget build(BuildContext context) {
@@ -3085,7 +3473,7 @@ class _ProfileHeaderCard extends StatelessWidget {
             ),
             alignment: Alignment.center,
             child: Text(
-              'AP',
+              snapshot.initials,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: WicaraColors.secondaryDeep,
                 fontSize: 20,
@@ -3098,7 +3486,7 @@ class _ProfileHeaderCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Aisyah Putri',
+                  snapshot.displayName,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontSize: 17,
                     fontWeight: FontWeight.w600,
