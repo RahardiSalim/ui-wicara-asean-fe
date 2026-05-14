@@ -31,7 +31,7 @@ class LandingPage extends StatelessWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const WicaraLogo(),
+                          const WicaraLogo(width: 350),
                           const SizedBox(height: 18),
                           Text(
                             'Prerequisite-first AI tutor\nfor ASEAN learners',
