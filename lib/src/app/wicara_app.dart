@@ -238,8 +238,9 @@ class _UnavailableWorkspaceRepository implements WorkspaceRepository {
   @override
   Future<WorkspaceGenerateVideoResult> generateVideo({
     required String workspaceId,
-    required String templateId,
-    Map<String, dynamic> specJson = const {},
+    String generationMode = 'context_auto',
+    String? templateId,
+    Map<String, dynamic>? specJson,
     String language = 'id',
     String qualityProfile = 'standard',
     String? conceptId,

@@ -87,21 +87,35 @@ class ApiWorkspaceRepository implements WorkspaceRepository {
   @override
   Future<WorkspaceGenerateVideoResult> generateVideo({
     required String workspaceId,
-    required String templateId,
-    Map<String, dynamic> specJson = const {},
+    String generationMode = 'context_auto',
+    String? templateId,
+    Map<String, dynamic>? specJson,
     String language = 'id',
     String qualityProfile = 'standard',
     String? conceptId,
     Map<String, dynamic> metadata = const {},
   }) async {
     final token = _requireToken();
+    final normalizedMode = generationMode.trim().toLowerCase().replaceAll(
+      '-',
+      '_',
+    );
     final requestBody = <String, dynamic>{
-      'template_id': templateId,
-      'spec_json': specJson,
+      'generation_mode': normalizedMode,
       'language': language,
       'quality_profile': qualityProfile,
       'metadata': metadata,
     };
+    if (normalizedMode == 'manual') {
+      final normalizedTemplate = _nullableString(templateId);
+      if (normalizedTemplate == null) {
+        throw const WorkspaceException(
+          'template_id is required for manual video generation mode.',
+        );
+      }
+      requestBody['template_id'] = normalizedTemplate;
+      requestBody['spec_json'] = specJson ?? const <String, dynamic>{};
+    }
     final normalizedConceptId = _nullableString(conceptId);
     if (normalizedConceptId != null) {
       requestBody['concept_id'] = normalizedConceptId;

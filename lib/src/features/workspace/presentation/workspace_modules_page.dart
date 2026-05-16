@@ -151,18 +151,13 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
       return;
     }
 
-    final payload = _buildPayloadForWorkspace(workspace);
-    if (payload == null) {
-      final topic = workspace.currentTopic.trim();
-      setState(() {
-        _contentMode = _WorkspaceContentMode.videoFailed;
-        _videoErrorMessage = topic.isEmpty
-            ? 'Video template mapping is unavailable for this module.'
-            : 'No video template mapping for "$topic" yet.';
-      });
-      _scrollToBottom();
-      return;
-    }
+    final language = _normalizedLanguageCode();
+    final chatTurnCount = _chatEntries
+        .where(
+          (entry) =>
+              !entry.isCanvas && (entry.text?.trim().isNotEmpty ?? false),
+        )
+        .length;
     _stopVideoPolling = true;
     setState(() {
       _isVideoGenerating = true;
@@ -178,14 +173,18 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
 
     try {
       debugPrint(
-        '[video-generate] workspace_id=${workspace.id} template_id=${payload.templateId} language=${payload.language}',
+        '[video-generate] workspace_id=${workspace.id} generation_mode=context_auto language=$language',
       );
       final result = await widget.workspaceRepository.generateVideo(
         workspaceId: workspace.id,
-        templateId: payload.templateId,
-        specJson: payload.specJson,
-        language: payload.language,
+        generationMode: 'context_auto',
+        language: language,
         qualityProfile: 'standard',
+        metadata: {
+          'triggered_by': 'workspace_mid_chat_button',
+          'chat_turn_count': chatTurnCount,
+          'workspace_content_mode': _contentMode.name,
+        },
       );
 
       if (!mounted) return;
@@ -376,27 +375,11 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
   }
 
   bool _canGenerateVideoForCurrentTopic() {
-    final workspace = _workspace;
-    if (workspace == null) {
-      return false;
-    }
-    return _matchTemplateForTopic(workspace.currentTopic) != null;
+    return _workspace != null;
   }
 
   String? _videoTemplateHintMessage() {
-    final workspace = _workspace;
-    if (workspace == null) {
-      return null;
-    }
-    final match = _matchTemplateForTopic(workspace.currentTopic);
-    if (match != null) {
-      return null;
-    }
-    final topic = workspace.currentTopic.trim();
-    if (topic.isEmpty) {
-      return 'Template mapping for this module is not available yet.';
-    }
-    return 'No template mapping for "$topic" yet. Please continue with text explanation or map this topic first.';
+    return null;
   }
 
   _VideoTemplateMatch? _matchTemplateForTopic(String topic) {
