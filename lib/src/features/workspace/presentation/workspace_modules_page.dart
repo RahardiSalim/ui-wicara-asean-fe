@@ -2544,11 +2544,15 @@ class _WorkspaceVideoPlayerDialog extends StatefulWidget {
     required this.title,
     required this.videoUrl,
     this.durationLabel,
+    this.isFullscreen = false,
+    this.initialPosition,
   });
 
   final String title;
   final String videoUrl;
   final String? durationLabel;
+  final bool isFullscreen;
+  final Duration? initialPosition;
 
   @override
   State<_WorkspaceVideoPlayerDialog> createState() =>
@@ -2561,6 +2565,7 @@ class _WorkspaceVideoPlayerDialogState
   bool _isLoading = true;
   String? _errorMessage;
   double _zoomScale = 1.0;
+  double? _timelineHoverFraction;
 
   @override
   void initState() {
@@ -2574,6 +2579,14 @@ class _WorkspaceVideoPlayerDialogState
         Uri.parse(widget.videoUrl),
       );
       await controller.initialize();
+      final requestedPosition = widget.initialPosition;
+      if (requestedPosition != null && requestedPosition > Duration.zero) {
+        final maxPosition = controller.value.duration;
+        final clampedPosition = requestedPosition > maxPosition
+            ? maxPosition
+            : requestedPosition;
+        await controller.seekTo(clampedPosition);
+      }
       if (!mounted) {
         await controller.dispose();
         return;
@@ -2604,123 +2617,351 @@ class _WorkspaceVideoPlayerDialogState
     });
   }
 
+  Future<void> _openFullscreenPlayer(VideoPlayerController controller) async {
+    final currentPosition = controller.value.position;
+    final wasPlaying = controller.value.isPlaying;
+    await controller.pause();
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.88),
+      builder: (_) {
+        return _WorkspaceVideoPlayerDialog(
+          title: widget.title,
+          videoUrl: widget.videoUrl,
+          durationLabel: widget.durationLabel,
+          isFullscreen: true,
+          initialPosition: currentPosition,
+        );
+      },
+    );
+
+    if (!mounted || !wasPlaying) return;
+    await controller.play();
+  }
+
+  void _updateTimelineHover({
+    required double localDx,
+    required double trackWidth,
+  }) {
+    if (trackWidth <= 0) return;
+    final fraction = (localDx / trackWidth).clamp(0.0, 1.0);
+    if (_timelineHoverFraction == fraction) return;
+    setState(() {
+      _timelineHoverFraction = fraction;
+    });
+  }
+
+  void _clearTimelineHover() {
+    if (_timelineHoverFraction == null) return;
+    setState(() {
+      _timelineHoverFraction = null;
+    });
+  }
+
+  String _formatTimelineTime(Duration duration) {
+    final totalSeconds = duration.inSeconds.clamp(0, 359999);
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    }
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
-    return Dialog(
-      insetPadding: const EdgeInsets.all(16),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+    final isFullscreen = widget.isFullscreen;
+    final foreground = isFullscreen ? Colors.white : WicaraColors.text;
+    final card = Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
+              ),
+              if (!isFullscreen &&
+                  !_isLoading &&
+                  _errorMessage == null &&
+                  controller != null)
                 IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => _openFullscreenPlayer(controller),
+                  icon: const Icon(Icons.open_in_full_rounded),
+                  color: foreground,
+                  tooltip: 'Open fullscreen',
                 ),
-              ],
-            ),
-            if ((widget.durationLabel ?? '').isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: _GeneratedVideoChip('Duration ${widget.durationLabel}'),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: Icon(
+                  isFullscreen
+                      ? Icons.fullscreen_exit_rounded
+                      : Icons.close_rounded,
+                ),
+                color: foreground,
               ),
             ],
-            const SizedBox(height: 6),
-            AspectRatio(
-              aspectRatio: controller?.value.isInitialized == true
-                  ? controller!.value.aspectRatio
-                  : 16 / 9,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: ColoredBox(
-                  color: Colors.black,
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _errorMessage != null
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Text(
-                              _errorMessage!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        )
-                      : InteractiveViewer(
-                          minScale: 1,
-                          maxScale: 3,
-                          panEnabled: true,
-                          scaleEnabled: true,
-                          child: Center(
-                            child: Transform.scale(
-                              scale: _zoomScale,
-                              child: VideoPlayer(controller!),
-                            ),
+          ),
+          if ((widget.durationLabel ?? '').isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _GeneratedVideoChip('Duration ${widget.durationLabel}'),
+            ),
+          ],
+          const SizedBox(height: 6),
+          AspectRatio(
+            aspectRatio: controller?.value.isInitialized == true
+                ? controller!.value.aspectRatio
+                : 16 / 9,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: ColoredBox(
+                color: Colors.black,
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _errorMessage != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Text(
+                            _errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white),
                           ),
                         ),
-                ),
+                      )
+                    : InteractiveViewer(
+                        minScale: 1,
+                        maxScale: 3,
+                        panEnabled: true,
+                        scaleEnabled: true,
+                        child: Center(
+                          child: Transform.scale(
+                            scale: _zoomScale,
+                            child: VideoPlayer(controller!),
+                          ),
+                        ),
+                      ),
               ),
             ),
-            const SizedBox(height: 10),
-            if (!_isLoading && _errorMessage == null && controller != null)
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () {
-                      setState(() {
-                        if (controller.value.isPlaying) {
-                          controller.pause();
-                        } else {
-                          controller.play();
-                        }
-                      });
-                    },
-                    icon: Icon(
-                      controller.value.isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
+          ),
+          const SizedBox(height: 10),
+          if (!_isLoading && _errorMessage == null && controller != null)
+            ValueListenableBuilder<VideoPlayerValue>(
+              valueListenable: controller,
+              builder: (context, value, _) {
+                final totalDuration = value.duration > Duration.zero
+                    ? value.duration
+                    : const Duration(seconds: 1);
+                final maxMs = totalDuration.inMilliseconds;
+                final positionMs = value.position.inMilliseconds
+                    .clamp(0, maxMs)
+                    .toInt();
+                final sliderValue = maxMs <= 0 ? 0.0 : positionMs / maxMs;
+                final currentLabel = _formatTimelineTime(
+                  Duration(milliseconds: positionMs),
+                );
+                final totalLabel = _formatTimelineTime(totalDuration);
+
+                return Column(
+                  children: [
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              if (value.isPlaying) {
+                                controller.pause();
+                              } else {
+                                controller.play();
+                              }
+                            });
+                          },
+                          icon: Icon(
+                            value.isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                          ),
+                          color: foreground,
+                        ),
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final trackWidth = constraints.maxWidth;
+                              final hoverFraction = _timelineHoverFraction;
+                              final showHover =
+                                  hoverFraction != null && trackWidth > 0;
+                              final safeHoverFraction = hoverFraction ?? 0.0;
+                              final hoverMs = showHover
+                                  ? (maxMs * safeHoverFraction).round()
+                                  : 0;
+                              final hoverLabel = showHover
+                                  ? _formatTimelineTime(
+                                      Duration(milliseconds: hoverMs),
+                                    )
+                                  : '';
+                              final bubbleWidth = 64.0;
+                              final hoverLeft = showHover
+                                  ? ((trackWidth * safeHoverFraction) -
+                                            (bubbleWidth / 2))
+                                        .clamp(
+                                          0.0,
+                                          math.max(
+                                            0.0,
+                                            trackWidth - bubbleWidth,
+                                          ),
+                                        )
+                                        .toDouble()
+                                  : 0.0;
+
+                              return MouseRegion(
+                                onHover: (event) {
+                                  _updateTimelineHover(
+                                    localDx: event.localPosition.dx,
+                                    trackWidth: trackWidth,
+                                  );
+                                },
+                                onExit: (_) => _clearTimelineHover(),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox(
+                                      height: showHover ? 22 : 0,
+                                      child: showHover
+                                          ? Stack(
+                                              children: [
+                                                Positioned(
+                                                  left: hoverLeft,
+                                                  width: bubbleWidth,
+                                                  child: Container(
+                                                    height: 20,
+                                                    alignment: Alignment.center,
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.black87,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            999,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      hoverLabel,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            )
+                                          : const SizedBox.shrink(),
+                                    ),
+                                    SliderTheme(
+                                      data: SliderTheme.of(context).copyWith(
+                                        trackHeight: 4,
+                                        thumbShape: const RoundSliderThumbShape(
+                                          enabledThumbRadius: 5,
+                                        ),
+                                        overlayShape:
+                                            SliderComponentShape.noOverlay,
+                                        activeTrackColor:
+                                            WicaraColors.secondary,
+                                        inactiveTrackColor: WicaraColors.line,
+                                        thumbColor: WicaraColors.secondary,
+                                      ),
+                                      child: Slider(
+                                        value: sliderValue.clamp(0.0, 1.0),
+                                        min: 0,
+                                        max: 1,
+                                        onChanged: (nextValue) {
+                                          final target = Duration(
+                                            milliseconds: (maxMs * nextValue)
+                                                .round(),
+                                          );
+                                          controller.seekTo(target);
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => _setZoomScale(_zoomScale - 0.25),
+                          icon: const Icon(Icons.zoom_out_rounded),
+                          color: foreground,
+                        ),
+                        IconButton(
+                          onPressed: () => _setZoomScale(1.0),
+                          icon: const Icon(Icons.filter_center_focus_rounded),
+                          color: foreground,
+                        ),
+                        IconButton(
+                          onPressed: () => _setZoomScale(_zoomScale + 0.25),
+                          icon: const Icon(Icons.zoom_in_rounded),
+                          color: foreground,
+                        ),
+                      ],
                     ),
-                  ),
-                  Expanded(
-                    child: VideoProgressIndicator(
-                      controller,
-                      allowScrubbing: true,
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Text(
+                          currentLabel,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: foreground.withValues(alpha: 0.82),
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          totalLabel,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: foreground.withValues(alpha: 0.82),
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ],
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => _setZoomScale(_zoomScale - 0.25),
-                    icon: const Icon(Icons.zoom_out_rounded),
-                  ),
-                  IconButton(
-                    onPressed: () => _setZoomScale(1.0),
-                    icon: const Icon(Icons.filter_center_focus_rounded),
-                  ),
-                  IconButton(
-                    onPressed: () => _setZoomScale(_zoomScale + 0.25),
-                    icon: const Icon(Icons.zoom_in_rounded),
-                  ),
-                ],
-              ),
-          ],
-        ),
+                  ],
+                );
+              },
+            ),
+        ],
       ),
     );
+
+    if (isFullscreen) {
+      return Dialog.fullscreen(
+        backgroundColor: Colors.black,
+        child: SafeArea(
+          child: ColoredBox(color: Colors.black, child: card),
+        ),
+      );
+    }
+
+    return Dialog(insetPadding: const EdgeInsets.all(16), child: card);
   }
 }
 
