@@ -110,6 +110,14 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
       _quizState = _WorkspaceQuizState.unanswered;
       _selectedQuizAnswer = null;
     });
+    _appendWorkspaceEvent(
+      eventType: 'text',
+      textPayload: 'Please give me a full explanation of this topic.',
+      metadata: const {
+        'stage': 'explain',
+        'triggered_by': 'explanation_choice',
+      },
+    );
     _scrollToBottom();
   }
 
