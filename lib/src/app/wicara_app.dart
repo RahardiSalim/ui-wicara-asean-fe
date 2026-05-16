@@ -64,10 +64,39 @@ class _WicaraAppState extends State<WicaraApp> {
   bool _didSchedulePreload = false;
   late final NavigatorObserver _authRouteObserver;
 
+  // Cached once after auth finishes initializing so that MaterialApp.initialRoute
+  // is never set from a partially-restored session.
+  String? _resolvedInitialRoute;
+
   @override
   void initState() {
     super.initState();
     _authRouteObserver = _AuthRouteObserver(widget.authController);
+    widget.authController.addListener(_onAuthChanged);
+    // If already initialized when the widget is created (uncommon but possible)
+    if (widget.authController.isInitialized) {
+      _resolvedInitialRoute = _computeInitialRoute();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.authController.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  void _onAuthChanged() {
+    if (_resolvedInitialRoute == null && widget.authController.isInitialized) {
+      setState(() {
+        _resolvedInitialRoute = _computeInitialRoute();
+      });
+    }
+  }
+
+  String _computeInitialRoute() {
+    return widget.authController.isSignedIn
+        ? widget.authController.initialSignedInRoute
+        : AppRoutes.landing;
   }
 
   @override
@@ -91,20 +120,26 @@ class _WicaraAppState extends State<WicaraApp> {
 
   @override
   Widget build(BuildContext context) {
+    // Show a blank splash until auth finishes initializing (including refresh).
+    // This prevents MaterialApp from mounting with an initialRoute derived from
+    // a partially-restored session before the refresh completes.
+    final initialRoute = _resolvedInitialRoute;
+    if (initialRoute == null) {
+      return const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(backgroundColor: Color(0xFFF3F3FD)),
+      );
+    }
+
     return AnimatedBuilder(
-      animation: Listenable.merge([
-        widget.authController,
-        widget.onboardingController,
-      ]),
+      animation: widget.onboardingController,
       builder: (context, _) {
         return MaterialApp(
           title: 'Wicara',
           debugShowCheckedModeBanner: false,
           theme: WicaraTheme.light(),
           navigatorObservers: [_authRouteObserver],
-          initialRoute: widget.authController.isSignedIn
-              ? widget.authController.initialSignedInRoute
-              : AppRoutes.landing,
+          initialRoute: initialRoute,
           onGenerateRoute: _onGenerateRoute,
         );
       },

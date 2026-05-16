@@ -68,7 +68,7 @@ class ApiClient {
     };
     final response = await _httpClient
         .post(uri, headers: mergedHeaders, body: jsonEncode(body ?? const {}))
-        .timeout(const Duration(seconds: 8));
+        .timeout(const Duration(seconds: 45));
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiClientException(
