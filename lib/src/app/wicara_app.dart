@@ -236,6 +236,26 @@ class _UnavailableWorkspaceRepository implements WorkspaceRepository {
   }
 
   @override
+  Future<WorkspaceGenerateVideoResult> generateVideo({
+    required String workspaceId,
+    required String templateId,
+    Map<String, dynamic> specJson = const {},
+    String language = 'id',
+    String qualityProfile = 'standard',
+    String? conceptId,
+    Map<String, dynamic> metadata = const {},
+  }) {
+    throw UnimplementedError('WorkspaceRepository is not configured.');
+  }
+
+  @override
+  Future<WorkspaceAnimationJobStatus> getAnimationStatus({
+    required String jobId,
+  }) {
+    throw UnimplementedError('WorkspaceRepository is not configured.');
+  }
+
+  @override
   Future<void> updateModuleState({
     required String trackId,
     required String moduleId,

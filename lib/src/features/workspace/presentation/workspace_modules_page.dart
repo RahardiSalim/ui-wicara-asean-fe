@@ -10,7 +10,13 @@ import '../../pretest/presentation/widgets/fishbone_canvas.dart';
 import '../domain/workspace_models.dart';
 import '../domain/workspace_repository.dart';
 
-enum _WorkspaceContentMode { choosing, explanation, videoLoading, videoReady }
+enum _WorkspaceContentMode {
+  choosing,
+  explanation,
+  videoProcessing,
+  videoReady,
+  videoFailed,
+}
 
 enum _WorkspaceQuizState { unanswered, correct, review }
 
@@ -31,6 +37,9 @@ class WorkspaceModulesPage extends StatefulWidget {
 }
 
 class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
+  static const _videoPollingInterval = Duration(seconds: 3);
+  static const _videoPollingTimeout = Duration(minutes: 5);
+
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   final List<_WorkspaceChatEntry> _chatEntries = [];
@@ -43,7 +52,12 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
   bool _isLoadingWorkspace = true;
   bool _isAppendingEvent = false;
   String? _workspaceError;
-  Timer? _videoTimer;
+  bool _isVideoGenerating = false;
+  bool _stopVideoPolling = false;
+  WorkspaceAnimationJobStatus? _latestVideoStatus;
+  WorkspaceMediaArtifact? _latestVideoArtifact;
+  String? _videoStatusMessage;
+  String? _videoErrorMessage;
 
   @override
   void initState() {
@@ -53,7 +67,7 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
 
   @override
   void dispose() {
-    _videoTimer?.cancel();
+    _stopVideoPolling = true;
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -104,7 +118,8 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
   }
 
   void _chooseExplanation() {
-    _videoTimer?.cancel();
+    _stopVideoPolling = true;
+    _isVideoGenerating = false;
     setState(() {
       _contentMode = _WorkspaceContentMode.explanation;
       _quizState = _WorkspaceQuizState.unanswered;
@@ -121,27 +136,249 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
     _scrollToBottom();
   }
 
-  void _generateVideo() {
-    _videoTimer?.cancel();
+  Future<void> _generateVideo() async {
+    if (_isVideoGenerating) {
+      return;
+    }
+    final workspace = _workspace;
+    if (workspace == null) {
+      setState(() {
+        _workspaceError = 'Workspace is not ready yet.';
+      });
+      return;
+    }
+
+    final payload = _buildMvpVideoPayload(workspace);
+    _stopVideoPolling = true;
     setState(() {
-      _contentMode = _WorkspaceContentMode.videoLoading;
+      _isVideoGenerating = true;
+      _contentMode = _WorkspaceContentMode.videoProcessing;
       _quizState = _WorkspaceQuizState.unanswered;
       _selectedQuizAnswer = null;
+      _latestVideoStatus = null;
+      _videoStatusMessage = 'Queueing video generation...';
+      _videoErrorMessage = null;
+      _workspaceError = null;
     });
     _scrollToBottom();
 
-    _videoTimer = Timer(const Duration(milliseconds: 1350), () {
-      if (!mounted) return;
-      setState(() => _contentMode = _WorkspaceContentMode.videoReady);
-      _appendWorkspaceEvent(
-        eventType: 'media_generated',
-        metadata: const {
-          'generation_mode': 'simulated_mobile_timer',
-          'duration_ms': 1350,
-        },
+    try {
+      final result = await widget.workspaceRepository.generateVideo(
+        workspaceId: workspace.id,
+        templateId: payload.templateId,
+        specJson: payload.specJson,
+        language: payload.language,
+        qualityProfile: 'standard',
       );
+
+      if (!mounted) return;
+      setState(() {
+        _workspace = result.workspace;
+        _latestVideoArtifact =
+            result.workspace.latestMedia ?? _latestVideoArtifact;
+        _videoStatusMessage = 'Video queued. Waiting for worker...';
+      });
+
+      await _pollVideoStatus(jobId: result.queue.jobId);
+    } on WorkspaceException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isVideoGenerating = false;
+        _contentMode = _WorkspaceContentMode.videoFailed;
+        _videoErrorMessage = error.message;
+      });
       _scrollToBottom();
-    });
+    }
+  }
+
+  Future<void> _pollVideoStatus({required String jobId}) async {
+    _stopVideoPolling = false;
+    final startedAt = DateTime.now();
+
+    while (mounted && !_stopVideoPolling) {
+      final elapsed = DateTime.now().difference(startedAt);
+      if (elapsed >= _videoPollingTimeout) {
+        if (!mounted) return;
+        setState(() {
+          _isVideoGenerating = false;
+          _contentMode = _WorkspaceContentMode.videoFailed;
+          _videoErrorMessage =
+              'Video generation timed out after ${_videoPollingTimeout.inMinutes} minutes.';
+          _videoStatusMessage = 'Generation timeout.';
+        });
+        _scrollToBottom();
+        return;
+      }
+
+      try {
+        final status = await widget.workspaceRepository.getAnimationStatus(
+          jobId: jobId,
+        );
+        if (!mounted || _stopVideoPolling) return;
+
+        setState(() {
+          _latestVideoStatus = status;
+          _videoStatusMessage = status.message;
+          if (status.isReady) {
+            _isVideoGenerating = false;
+            _contentMode = _WorkspaceContentMode.videoReady;
+            _videoErrorMessage = null;
+            _latestVideoArtifact = _latestVideoArtifactFromStatus(
+              status,
+              fallback: _workspace,
+            );
+          } else if (status.isFailed) {
+            _isVideoGenerating = false;
+            _contentMode = _WorkspaceContentMode.videoFailed;
+            _videoErrorMessage = status.error ?? status.message;
+          } else {
+            _contentMode = _WorkspaceContentMode.videoProcessing;
+          }
+        });
+
+        if (status.isFinal) {
+          if (status.isReady) {
+            await _refreshWorkspaceAfterReady();
+          }
+          _scrollToBottom();
+          return;
+        }
+      } on WorkspaceException catch (error) {
+        if (!mounted || _stopVideoPolling) return;
+        setState(() {
+          _isVideoGenerating = false;
+          _contentMode = _WorkspaceContentMode.videoFailed;
+          _videoErrorMessage = error.message;
+        });
+        _scrollToBottom();
+        return;
+      }
+
+      await Future<void>.delayed(_videoPollingInterval);
+    }
+  }
+
+  Future<void> _refreshWorkspaceAfterReady() async {
+    final workspace = _workspace;
+    if (workspace == null) {
+      return;
+    }
+    try {
+      final refreshed = await widget.workspaceRepository.fetchWorkspace(
+        workspace.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _workspace = refreshed;
+        _latestVideoArtifact = refreshed.latestMedia ?? _latestVideoArtifact;
+      });
+    } on WorkspaceException {
+      // Best effort refresh; preserve ready state and fallback artifact.
+    }
+  }
+
+  _VideoGenerationPayload _buildMvpVideoPayload(WorkspaceSession workspace) {
+    final preferredLanguage = widget
+        .onboardingController
+        .profile
+        .preferredLanguage
+        .toLowerCase();
+    final language = switch (preferredLanguage) {
+      'indonesian' || 'id' || 'id-id' => 'id',
+      'english' || 'en' || 'en-us' => 'en',
+      _ => 'id',
+    };
+    final topic = workspace.currentTopic.trim();
+    final title = topic.isEmpty ? 'Graph Explanation' : topic;
+
+    return _VideoGenerationPayload(
+      templateId: 'manim.graph_explanation.v1',
+      language: language,
+      specJson: {
+        'id': 'mobile_graph_explanation_${workspace.id}',
+        'template_id': 'manim.graph_explanation.v1',
+        'language': language,
+        'title': title,
+        'subtitle': 'Visual explanation generated from workspace context.',
+        'function': {
+          'type': 'quadratic',
+          'params': {'a': 1, 'b': 0, 'c': 0},
+        },
+        'x_range': [-3, 3, 1],
+        'y_range': [-1, 9, 1],
+        'graph_features': [
+          {'type': 'vertex', 'label': 'Vertex'},
+          {'type': 'slope', 'label': 'Local slope'},
+        ],
+        'highlight_points': [
+          {'x': 1, 'label': 'x = 1'},
+        ],
+        'formula_latex': 'f(x)=x^2',
+        'steps': [
+          {
+            'title': 'Graph shape',
+            'body': 'A quadratic function forms a parabola.',
+            'narration': 'A quadratic function forms a parabola.',
+          },
+          {
+            'title': 'Value changes',
+            'body': 'As x changes, f(x) changes along the curve.',
+            'narration': 'As x changes, f(x) changes along the curve.',
+          },
+        ],
+        'summary': 'The graph helps us understand function behavior visually.',
+        'voiceover_script':
+            'This graph helps explain how function values change with x.',
+        'intro_narration':
+            'This graph helps explain how function values change with x.',
+        'summary_narration':
+            'The graph helps us understand function behavior visually.',
+        'narration_segments': [
+          {
+            'slot': 'intro',
+            'text':
+                'This graph helps explain how function values change with x.',
+          },
+          {
+            'slot': 'step',
+            'step_index': 1,
+            'text': 'A quadratic function forms a parabola.',
+          },
+          {
+            'slot': 'step',
+            'step_index': 2,
+            'text': 'As x changes, f(x) changes along the curve.',
+          },
+          {
+            'slot': 'summary',
+            'text': 'The graph helps us understand function behavior visually.',
+          },
+        ],
+      },
+    );
+  }
+
+  WorkspaceMediaArtifact _latestVideoArtifactFromStatus(
+    WorkspaceAnimationJobStatus status, {
+    WorkspaceSession? fallback,
+  }) {
+    final existing = _workspace?.latestMedia;
+    if (existing != null && existing.id == status.artifactId) {
+      return existing;
+    }
+    return WorkspaceMediaArtifact(
+      id: status.artifactId,
+      title: fallback?.currentTopic ?? 'Generated video',
+      subtitle: 'Video generated from workspace session.',
+      status: status.status,
+      durationSeconds: 0,
+      durationLabel: '--:--',
+      transcript: '',
+      notes: const [],
+      thumbnailUrl: status.thumbnailUrl,
+      videoUrl: status.videoUrl,
+      playbackUrl: status.videoUrl,
+    );
   }
 
   Future<void> _answerQuiz(String answer) async {
@@ -417,9 +654,16 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
                                 canvasSnapshots: _canvasSnapshots,
                                 isLoadingWorkspace: _isLoadingWorkspace,
                                 isAppendingEvent: _isAppendingEvent,
+                                isVideoGenerating: _isVideoGenerating,
                                 workspaceError: _workspaceError,
+                                latestVideoStatus: _latestVideoStatus,
+                                latestVideoArtifact: _latestVideoArtifact,
+                                videoStatusMessage: _videoStatusMessage,
+                                videoErrorMessage: _videoErrorMessage,
                                 onChooseExplanation: _chooseExplanation,
-                                onGenerateVideo: _generateVideo,
+                                onGenerateVideo: () {
+                                  unawaited(_generateVideo());
+                                },
                                 onAnswerQuiz: _answerQuiz,
                                 onOpenCanvas: _openCanvas,
                               ),
@@ -457,6 +701,18 @@ class _WorkspaceChatEntry {
   bool get isCanvas => snapshot != null;
 }
 
+class _VideoGenerationPayload {
+  const _VideoGenerationPayload({
+    required this.templateId,
+    required this.specJson,
+    required this.language,
+  });
+
+  final String templateId;
+  final Map<String, dynamic> specJson;
+  final String language;
+}
+
 class _WorkspaceChatPanel extends StatelessWidget {
   const _WorkspaceChatPanel({
     required this.contentMode,
@@ -466,7 +722,12 @@ class _WorkspaceChatPanel extends StatelessWidget {
     required this.canvasSnapshots,
     required this.isLoadingWorkspace,
     required this.isAppendingEvent,
+    required this.isVideoGenerating,
     required this.workspaceError,
+    required this.latestVideoStatus,
+    required this.latestVideoArtifact,
+    required this.videoStatusMessage,
+    required this.videoErrorMessage,
     required this.onChooseExplanation,
     required this.onGenerateVideo,
     required this.onAnswerQuiz,
@@ -480,7 +741,12 @@ class _WorkspaceChatPanel extends StatelessWidget {
   final List<CanvasWorkSnapshot> canvasSnapshots;
   final bool isLoadingWorkspace;
   final bool isAppendingEvent;
+  final bool isVideoGenerating;
   final String? workspaceError;
+  final WorkspaceAnimationJobStatus? latestVideoStatus;
+  final WorkspaceMediaArtifact? latestVideoArtifact;
+  final String? videoStatusMessage;
+  final String? videoErrorMessage;
   final VoidCallback onChooseExplanation;
   final VoidCallback onGenerateVideo;
   final ValueChanged<String> onAnswerQuiz;
@@ -534,6 +800,7 @@ class _WorkspaceChatPanel extends StatelessWidget {
           const SizedBox(height: 14),
           _WorkspaceChoiceGrid(
             contentMode: contentMode,
+            isVideoGenerating: isVideoGenerating,
             onChooseExplanation: onChooseExplanation,
             onGenerateVideo: onGenerateVideo,
           ),
@@ -545,16 +812,35 @@ class _WorkspaceChatPanel extends StatelessWidget {
             ),
             const SizedBox(height: 9),
             const _ConceptExplanationBubble(),
-          ] else if (contentMode == _WorkspaceContentMode.videoLoading) ...[
+          ] else if (contentMode == _WorkspaceContentMode.videoProcessing) ...[
             const SizedBox(height: 14),
             const _WorkspaceBubble(text: 'Generate a video.', isUser: true),
             const SizedBox(height: 10),
-            const _WorkspaceVideoLoadingCard(),
+            _WorkspaceVideoLoadingCard(
+              progress: latestVideoStatus?.progress ?? 0,
+              message:
+                  videoStatusMessage ??
+                  'Building scenes, narration, and rendering...',
+            ),
           ] else if (contentMode == _WorkspaceContentMode.videoReady) ...[
             const SizedBox(height: 14),
             const _WorkspaceBubble(text: 'Generate a video.', isUser: true),
             const SizedBox(height: 10),
-            const _GeneratedWorkspaceVideoCard(),
+            _GeneratedWorkspaceVideoCard(
+              artifact: latestVideoArtifact,
+              status: latestVideoStatus,
+            ),
+          ] else if (contentMode == _WorkspaceContentMode.videoFailed) ...[
+            const SizedBox(height: 14),
+            const _WorkspaceBubble(text: 'Generate a video.', isUser: true),
+            const SizedBox(height: 10),
+            _WorkspaceVideoFailedCard(
+              errorMessage:
+                  videoErrorMessage ??
+                  latestVideoStatus?.error ??
+                  'Video generation failed.',
+              onRetry: onGenerateVideo,
+            ),
           ],
           if (contentMode == _WorkspaceContentMode.explanation ||
               contentMode == _WorkspaceContentMode.videoReady) ...[
@@ -644,11 +930,13 @@ class _WorkspaceCanvasDialog extends StatelessWidget {
 class _WorkspaceChoiceGrid extends StatelessWidget {
   const _WorkspaceChoiceGrid({
     required this.contentMode,
+    required this.isVideoGenerating,
     required this.onChooseExplanation,
     required this.onGenerateVideo,
   });
 
   final _WorkspaceContentMode contentMode;
+  final bool isVideoGenerating;
   final VoidCallback onChooseExplanation;
   final VoidCallback onGenerateVideo;
 
@@ -662,6 +950,7 @@ class _WorkspaceChoiceGrid extends StatelessWidget {
             icon: Icons.notes_rounded,
             isSelected: contentMode == _WorkspaceContentMode.explanation,
             onPressed: onChooseExplanation,
+            isEnabled: !isVideoGenerating,
           ),
         ),
         const SizedBox(width: 10),
@@ -670,9 +959,11 @@ class _WorkspaceChoiceGrid extends StatelessWidget {
             label: 'Generate video',
             icon: Icons.smart_display_rounded,
             isSelected:
-                contentMode == _WorkspaceContentMode.videoLoading ||
-                contentMode == _WorkspaceContentMode.videoReady,
+                contentMode == _WorkspaceContentMode.videoProcessing ||
+                contentMode == _WorkspaceContentMode.videoReady ||
+                contentMode == _WorkspaceContentMode.videoFailed,
             onPressed: onGenerateVideo,
+            isEnabled: !isVideoGenerating,
           ),
         ),
       ],
@@ -727,12 +1018,14 @@ class _WorkspaceChoiceButton extends StatelessWidget {
     required this.icon,
     required this.isSelected,
     required this.onPressed,
+    this.isEnabled = true,
   });
 
   final String label;
   final IconData icon;
   final bool isSelected;
   final VoidCallback onPressed;
+  final bool isEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -740,10 +1033,10 @@ class _WorkspaceChoiceButton extends StatelessWidget {
     final borderColor = isSelected ? WicaraColors.primary : WicaraColors.line;
 
     return Material(
-      color: background,
+      color: isEnabled ? background : background.withValues(alpha: 0.72),
       borderRadius: BorderRadius.circular(13),
       child: InkWell(
-        onTap: onPressed,
+        onTap: isEnabled ? onPressed : null,
         borderRadius: BorderRadius.circular(13),
         child: Container(
           height: 78,
@@ -1077,10 +1370,17 @@ class _ConceptExplanationBubble extends StatelessWidget {
 }
 
 class _WorkspaceVideoLoadingCard extends StatelessWidget {
-  const _WorkspaceVideoLoadingCard();
+  const _WorkspaceVideoLoadingCard({
+    required this.progress,
+    required this.message,
+  });
+
+  final int progress;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
+    final normalizedProgress = (progress.clamp(0, 100)) / 100;
     return _WorkspaceRichBubble(
       icon: Icons.movie_creation_outlined,
       title: 'Generating video',
@@ -1089,15 +1389,24 @@ class _WorkspaceVideoLoadingCard extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
-            child: const LinearProgressIndicator(
+            child: LinearProgressIndicator(
+              value: normalizedProgress == 0 ? null : normalizedProgress,
               minHeight: 7,
-              color: WicaraColors.primary,
+              color: WicaraColors.primaryDeep,
               backgroundColor: WicaraColors.primarySoft,
             ),
           ),
           const SizedBox(height: 11),
           Text(
-            'Building scenes, narration, and a quick graph animation...',
+            '$progress%',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: WicaraColors.secondary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            message,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: WicaraColors.muted,
               fontWeight: FontWeight.w600,
@@ -1110,10 +1419,23 @@ class _WorkspaceVideoLoadingCard extends StatelessWidget {
 }
 
 class _GeneratedWorkspaceVideoCard extends StatelessWidget {
-  const _GeneratedWorkspaceVideoCard();
+  const _GeneratedWorkspaceVideoCard({this.artifact, this.status});
+
+  final WorkspaceMediaArtifact? artifact;
+  final WorkspaceAnimationJobStatus? status;
 
   @override
   Widget build(BuildContext context) {
+    final title = artifact?.title ?? 'Generated video';
+    final subtitle =
+        artifact?.subtitle ??
+        'Video rendering finished and is ready in your workspace.';
+    final durationLabel = artifact?.durationLabel.isNotEmpty == true
+        ? artifact!.durationLabel
+        : '--:--';
+    final playbackUrl = artifact?.videoUrl ?? status?.videoUrl ?? '';
+    final thumbnailUrl = artifact?.thumbnailUrl ?? status?.thumbnailUrl;
+
     return _WorkspaceRichBubble(
       icon: Icons.video_collection_outlined,
       title: 'Saved generated video',
@@ -1135,7 +1457,18 @@ class _GeneratedWorkspaceVideoCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    CustomPaint(painter: _WorkspaceVideoPreviewPainter()),
+                    if (thumbnailUrl != null && thumbnailUrl.isNotEmpty)
+                      Image.network(
+                        thumbnailUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return CustomPaint(
+                            painter: _WorkspaceVideoPreviewPainter(),
+                          );
+                        },
+                      )
+                    else
+                      CustomPaint(painter: _WorkspaceVideoPreviewPainter()),
                     Center(
                       child: Container(
                         width: 46,
@@ -1170,18 +1503,33 @@ class _GeneratedWorkspaceVideoCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Limits from graphs in 5 minutes',
+                    title,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: WicaraColors.ink,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: WicaraColors.muted,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
+                    ),
+                  ),
                   const SizedBox(height: 7),
                   Row(
                     children: [
-                      const _GeneratedVideoChip('04:52'),
+                      _GeneratedVideoChip(durationLabel),
                       const SizedBox(width: 7),
                       const _GeneratedVideoChip('AI video'),
+                      if (playbackUrl.isNotEmpty) ...[
+                        const SizedBox(width: 7),
+                        const _GeneratedVideoChip('Ready URL'),
+                      ],
                       const Spacer(),
                       Icon(
                         Icons.check_circle_rounded,
@@ -1195,6 +1543,43 @@ class _GeneratedWorkspaceVideoCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _WorkspaceVideoFailedCard extends StatelessWidget {
+  const _WorkspaceVideoFailedCard({
+    required this.errorMessage,
+    required this.onRetry,
+  });
+
+  final String errorMessage;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return _WorkspaceRichBubble(
+      icon: Icons.error_outline_rounded,
+      title: 'Video generation failed',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            errorMessage,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: WicaraColors.accentCoral,
+              fontWeight: FontWeight.w700,
+              height: 1.32,
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Retry generate video'),
+          ),
+        ],
       ),
     );
   }
