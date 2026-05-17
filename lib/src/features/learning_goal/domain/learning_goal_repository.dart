@@ -7,6 +7,28 @@ class LearningGoalException implements Exception {
   String toString() => message;
 }
 
+/// Thrown when the user attempts to confirm a new learning goal but already
+/// has one active. Carries enough info to let the UI offer "continue" or
+/// "cancel" actions on the existing goal.
+class ActiveGoalConflictException implements Exception {
+  const ActiveGoalConflictException({
+    required this.existingGoalId,
+    required this.existingTopic,
+    required this.existingStatus,
+    required this.existingNextAction,
+  });
+
+  final String existingGoalId;
+  final String existingTopic;
+  final String existingStatus;
+  final String existingNextAction;
+
+  @override
+  String toString() =>
+      'You already have an active goal: "$existingTopic". '
+      'Cancel it first to start a new one.';
+}
+
 class LearningGoalBootstrap {
   const LearningGoalBootstrap({
     required this.learningGoalId,

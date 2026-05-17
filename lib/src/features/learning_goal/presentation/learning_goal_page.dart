@@ -117,6 +117,10 @@ class _LearningGoalPageState extends State<LearningGoalPage> {
       }
 
       Navigator.of(context).pushReplacementNamed(AppRoutes.pretest);
+    } on ActiveGoalConflictException catch (conflict) {
+      if (!mounted) return;
+      setState(() => _isGenerating = false);
+      await _showConflictDialog(conflict);
     } on LearningGoalException catch (error) {
       if (!mounted) {
         return;
@@ -132,6 +136,123 @@ class _LearningGoalPageState extends State<LearningGoalPage> {
         );
     }
   }
+
+  /// Shows a structured dialog when the backend rejects the new goal because
+  /// another goal is already active. Offers the user two actions:
+  ///   - Continue the existing goal
+  ///   - Cancel the existing goal (so they can start fresh)
+  Future<void> _showConflictDialog(ActiveGoalConflictException conflict) async {
+    final copy = OnboardingCopy.forLanguage(
+      widget.onboardingController.profile.preferredLanguage,
+    );
+    final isId = copy.isIndonesian;
+
+    // Build an ephemeral ActiveLearningGoal so we can reuse _cancelActiveGoal.
+    final conflictGoal = ActiveLearningGoal(
+      id: conflict.existingGoalId,
+      status: conflict.existingStatus,
+      rawTopic: conflict.existingTopic,
+      nextAction: conflict.existingNextAction,
+    );
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          isId ? 'Goal aktif sudah ada' : 'Active goal already exists',
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isId
+                  ? 'Kamu sudah punya goal aktif:'
+                  : 'You already have an active goal:',
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '"${conflict.existingTopic}"',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              isId
+                  ? 'Hanya boleh ada 1 goal aktif. Lanjutkan goal yang ada atau batalkan dulu sebelum mulai yang baru.'
+                  : 'Only 1 active goal is allowed. Continue the existing goal or cancel it before starting a new one.',
+              style: const TextStyle(fontSize: 13, height: 1.4),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.of(dialogContext).pop();
+              // Cancel the existing goal, then let the user try again.
+              setState(() {
+                _activeGoal = conflictGoal;
+                _isGenerating = true;
+              });
+              await _cancelActiveGoalById(conflict.existingGoalId);
+            },
+            child: Text(
+              isId ? 'Batalkan goal lama' : 'Cancel existing goal',
+              style: TextStyle(color: Colors.red.shade700),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              // Set the fetched goal as active so the panel shows up.
+              setState(() => _activeGoal = conflictGoal);
+            },
+            child: Text(
+              isId ? 'Lanjutkan goal lama' : 'Continue existing goal',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Cancels a specific goal by ID (used when resolving a conflict).
+  Future<void> _cancelActiveGoalById(String goalId) async {
+    try {
+      await widget.learningGoalRepository.cancelGoal(
+        learningGoalId: goalId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _activeGoal = null;
+        _isGenerating = false;
+        _resolution = null; // reset so they can re-resolve the new topic
+      });
+    } on LearningGoalException catch (error) {
+      if (!mounted) return;
+      setState(() => _isGenerating = false);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(error.message),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
+  }
+
 
   Future<void> _cancelActiveGoal() async {
     final activeGoal = _activeGoal;

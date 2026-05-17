@@ -6,6 +6,8 @@ import 'package:video_player/video_player.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/wicara_colors.dart';
+import '../../home/domain/home_repository.dart';
+import '../../home/domain/home_snapshot.dart';
 import '../../onboarding/application/onboarding_controller.dart';
 import '../../onboarding/domain/onboarding_copy.dart';
 import '../../pretest/domain/multiplication_assessment_bank.dart';
@@ -27,12 +29,16 @@ class WorkspaceModulesPage extends StatefulWidget {
   const WorkspaceModulesPage({
     required this.onboardingController,
     required this.workspaceRepository,
+    this.homeRepository,
     this.routeArguments,
     super.key,
   });
 
   final OnboardingController onboardingController;
   final WorkspaceRepository workspaceRepository;
+  /// Optional: when provided the latest weekly report is fetched and shown
+  /// as a summary card at the top of the chat history.
+  final HomeRepository? homeRepository;
   final WorkspaceRouteArguments? routeArguments;
 
   @override
@@ -63,6 +69,11 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
   String? _videoStatusMessage;
   String? _videoErrorMessage;
 
+  /// Latest weekly report fetched from HomeRepository. Null while loading or
+  /// if no HomeRepository was provided.
+  WeeklyLearningReport? _weeklyReport;
+  bool _reportCardDismissed = false;
+
   HardcodedAssessmentPack get _assessmentPack {
     return HardcodedAssessmentBank.packForEducation(
       educationLevel: widget.onboardingController.profile.educationLevel,
@@ -74,6 +85,19 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
   void initState() {
     super.initState();
     _loadWorkspace();
+    _loadWeeklyReport();
+  }
+
+  Future<void> _loadWeeklyReport() async {
+    final repo = widget.homeRepository;
+    if (repo == null) return;
+    try {
+      final report = await repo.fetchWeeklyLearningReport();
+      if (!mounted) return;
+      setState(() => _weeklyReport = report);
+    } catch (_) {
+      // Best-effort: silently ignore report fetch failures.
+    }
   }
 
   @override
@@ -1614,6 +1638,12 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
                                 canGenerateVideo:
                                     _canGenerateVideoForCurrentTopic(),
                                 videoTemplateHint: _videoTemplateHintMessage(),
+                                weeklyReport: _reportCardDismissed
+                                    ? null
+                                    : _weeklyReport,
+                                onDismissReport: () {
+                                  setState(() => _reportCardDismissed = true);
+                                },
                                 onChooseExplanation: _chooseExplanation,
                                 onGenerateVideo: () {
                                   unawaited(_generateVideo());
@@ -1707,6 +1737,8 @@ class _WorkspaceChatPanel extends StatelessWidget {
     required this.onAnswerQuiz,
     required this.onStartPosttest,
     required this.onOpenCanvas,
+    this.weeklyReport,
+    this.onDismissReport,
   });
 
   final _WorkspaceContentMode contentMode;
@@ -1731,6 +1763,8 @@ class _WorkspaceChatPanel extends StatelessWidget {
   final ValueChanged<String> onAnswerQuiz;
   final VoidCallback onStartPosttest;
   final VoidCallback onOpenCanvas;
+  final WeeklyLearningReport? weeklyReport;
+  final VoidCallback? onDismissReport;
 
   @override
   Widget build(BuildContext context) {
@@ -1739,6 +1773,14 @@ class _WorkspaceChatPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // ── Weekly report card (dismissible, shown at top of chat) ────────
+          if (weeklyReport != null) ...[
+            _WeeklyReportChatCard(
+              report: weeklyReport!,
+              onDismiss: onDismissReport,
+            ),
+            const SizedBox(height: 14),
+          ],
           _AssistantMessageFrame(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -3500,6 +3542,251 @@ class _WorkspacePanel extends StatelessWidget {
         ],
       ),
       child: child,
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Weekly Report Chat Card
+// ────────────────────────────────────────────────────────────────────────────
+
+/// A compact, dismissible summary card shown at the top of the workspace
+/// chatbot whenever the HomeRepository is configured. It displays the user's
+/// latest weekly learning progress so they can pick up where they left off.
+class _WeeklyReportChatCard extends StatelessWidget {
+  const _WeeklyReportChatCard({
+    required this.report,
+    this.onDismiss,
+  });
+
+  final WeeklyLearningReport report;
+  final VoidCallback? onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final score = report.score;
+    final fixed = report.fixedGaps;
+    final remaining = report.remainingGaps;
+    final minutes = report.retentionMinutes;
+    final notes = report.summaryNotes.take(3).toList();
+    final consistency = report.consistencySummary;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            WicaraColors.primary.withValues(alpha: 0.10),
+            WicaraColors.primaryDeep.withValues(alpha: 0.06),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: WicaraColors.primary.withValues(alpha: 0.22),
+          width: 1.2,
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Header row ──────────────────────────────────────────────────
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: WicaraColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.bar_chart_rounded,
+                  size: 16,
+                  color: WicaraColors.primary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Weekly Report',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: WicaraColors.primary,
+                        height: 1.1,
+                      ),
+                    ),
+                    if (report.rangeLabel.isNotEmpty)
+                      Text(
+                        report.rangeLabel,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: WicaraColors.muted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (onDismiss != null)
+                GestureDetector(
+                  onTap: onDismiss,
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 17,
+                    color: WicaraColors.muted,
+                  ),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Stat row ────────────────────────────────────────────────────
+          Row(
+            children: [
+              _ReportStat(
+                value: score > 0 ? '$score%' : '--',
+                label: 'Score',
+                color: WicaraColors.primary,
+              ),
+              const SizedBox(width: 8),
+              _ReportStat(
+                value: '+$fixed',
+                label: 'Fixed gaps',
+                color: WicaraColors.accentMint,
+              ),
+              const SizedBox(width: 8),
+              _ReportStat(
+                value: '$remaining',
+                label: 'Remaining',
+                color: remaining > 0
+                    ? const Color(0xFFF4A44E)
+                    : WicaraColors.accentMint,
+              ),
+              const SizedBox(width: 8),
+              _ReportStat(
+                value: '${minutes}m',
+                label: 'Retention',
+                color: WicaraColors.primaryDeep,
+              ),
+            ],
+          ),
+
+          // ── Summary notes ───────────────────────────────────────────────
+          if (notes.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ...notes.map(
+              (note) => Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Container(
+                        width: 4,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: WicaraColors.primary.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        note,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: WicaraColors.text,
+                          height: 1.35,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+
+          // ── Consistency summary ─────────────────────────────────────────
+          if (consistency.narrative.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
+              decoration: BoxDecoration(
+                color: WicaraColors.primary.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                consistency.narrative,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: WicaraColors.primaryDeep,
+                  fontWeight: FontWeight.w600,
+                  height: 1.3,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ReportStat extends StatelessWidget {
+  const _ReportStat({
+    required this.value,
+    required this.label,
+    required this.color,
+  });
+
+  final String value;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: color,
+                height: 1.1,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 9.5,
+                color: WicaraColors.muted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

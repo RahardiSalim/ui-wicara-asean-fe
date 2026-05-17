@@ -184,6 +184,7 @@ class _WicaraAppState extends State<WicaraApp> {
           workspaceRepository:
               widget.workspaceRepository ??
               const _UnavailableWorkspaceRepository(),
+          homeRepository: widget.homeRepository,
           routeArguments: settings.arguments is WorkspaceRouteArguments
               ? settings.arguments! as WorkspaceRouteArguments
               : null,

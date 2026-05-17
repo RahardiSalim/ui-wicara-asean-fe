@@ -34,6 +34,8 @@ class ApiWorkspaceRepository implements WorkspaceRepository {
         },
       );
       final workspace = workspaceFromJson(json);
+      // Persist using the keyed store so every (track, module) pair keeps its
+      // own workspace ID independently of other open sessions.
       await _workspaceSessionStore.save(
         trackId: trackId,
         moduleId: moduleId,

@@ -96,6 +96,12 @@ class ApiLearningGoalRepository implements LearningGoalRepository {
       );
       return bootstrap;
     } on ApiClientException catch (error) {
+      // Detect 409 ACTIVE_LEARNING_GOAL_EXISTS from the backend and surface it
+      // as a typed exception so the UI can show a structured conflict dialog.
+      final conflict = _tryParseConflict(error);
+      if (conflict != null) {
+        throw conflict;
+      }
       throw LearningGoalException(error.message);
     }
   }
@@ -122,6 +128,25 @@ class ApiLearningGoalRepository implements LearningGoalRepository {
   Future<LearningGoalBootstrap> createLearningGoal({
     required String rawTopic,
   }) async {
+    // Check for an existing active goal with the same normalised topic before
+    // hitting the resolve/confirm flow — this gives a fast, cheap duplicate
+    // warning without consuming a resolve credit.
+    final existingGoal = await fetchActiveGoal();
+    if (existingGoal != null) {
+      final normalizedNew = rawTopic.trim().toLowerCase();
+      final normalizedExisting = existingGoal.rawTopic.trim().toLowerCase();
+      if (normalizedNew == normalizedExisting ||
+          normalizedNew.contains(normalizedExisting) ||
+          normalizedExisting.contains(normalizedNew)) {
+        throw ActiveGoalConflictException(
+          existingGoalId: existingGoal.id,
+          existingTopic: existingGoal.rawTopic,
+          existingStatus: existingGoal.status,
+          existingNextAction: existingGoal.nextAction,
+        );
+      }
+    }
+
     final resolution = await resolveLearningGoal(rawQuery: rawTopic);
     if (resolution.suggestedConcept == null) {
       throw LearningGoalException(
@@ -186,6 +211,23 @@ class ApiLearningGoalRepository implements LearningGoalRepository {
   }
 
   String _string(Object? value) => (value ?? '').toString().trim();
+
+  /// Tries to parse a 409 ACTIVE_LEARNING_GOAL_EXISTS response body into an
+  /// [ActiveGoalConflictException]. Returns `null` for any other error.
+  ActiveGoalConflictException? _tryParseConflict(ApiClientException error) {
+    final detail = error.detail;
+    if (detail is! Map) return null;
+    final errorCode = detail['error']?.toString();
+    if (errorCode != 'ACTIVE_LEARNING_GOAL_EXISTS') return null;
+    final activeGoal = detail['active_goal'];
+    if (activeGoal is! Map) return null;
+    return ActiveGoalConflictException(
+      existingGoalId: _string(activeGoal['id']),
+      existingTopic: _string(activeGoal['raw_topic']),
+      existingStatus: _string(activeGoal['status']),
+      existingNextAction: _string(activeGoal['next_action'] ?? ''),
+    );
+  }
 }
 
 LearningGoalResolution _resolutionFromJson(Map<String, dynamic> json) {
