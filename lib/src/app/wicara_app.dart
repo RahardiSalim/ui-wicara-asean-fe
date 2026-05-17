@@ -177,6 +177,7 @@ class _WicaraAppState extends State<WicaraApp> {
               widget.homeRepository ?? const _UnavailableHomeRepository(),
           authController: widget.authController,
           onboardingController: widget.onboardingController,
+          routeArguments: settings.arguments,
         ),
         AppRoutes.workspaceModules => WorkspaceModulesPage(
           onboardingController: widget.onboardingController,

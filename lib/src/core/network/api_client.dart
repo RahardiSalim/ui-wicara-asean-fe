@@ -168,6 +168,16 @@ String _errorMessage(
       if (detail is String && detail.trim().isNotEmpty) {
         return detail;
       }
+      if (detail is Map<String, dynamic>) {
+        final detailMessage = detail['message'];
+        if (detailMessage is String && detailMessage.trim().isNotEmpty) {
+          return detailMessage;
+        }
+        final detailError = detail['error'];
+        if (detailError is String && detailError.trim().isNotEmpty) {
+          return detailError;
+        }
+      }
       final error = decoded['error'];
       if (error is String && error.trim().isNotEmpty) {
         return error;

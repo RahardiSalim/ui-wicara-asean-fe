@@ -46,12 +46,25 @@ class _HomeCopyScope extends InheritedWidget {
   bool updateShouldNotify(_HomeCopyScope oldWidget) => copy != oldWidget.copy;
 }
 
+bool _shouldOpenKnowledgeMap(Object? arguments) {
+  if (arguments is! Map) {
+    return false;
+  }
+  final focusCodes = arguments['focus_concept_codes'];
+  final subjectCode = arguments['subject_code'];
+  if (focusCodes is List && focusCodes.isNotEmpty) {
+    return true;
+  }
+  return subjectCode is String && subjectCode.trim().isNotEmpty;
+}
+
 class AppHomePage extends StatefulWidget {
   const AppHomePage({
     required this.curriculumRepository,
     required this.homeRepository,
     required this.authController,
     required this.onboardingController,
+    this.routeArguments,
     super.key,
   });
 
@@ -59,6 +72,7 @@ class AppHomePage extends StatefulWidget {
   final HomeRepository homeRepository;
   final AuthController authController;
   final OnboardingController onboardingController;
+  final Object? routeArguments;
 
   @override
   State<AppHomePage> createState() => _AppHomePageState();
@@ -101,6 +115,10 @@ class _AppHomePageState extends State<AppHomePage> {
   void initState() {
     super.initState();
     _homeSnapshotFuture = widget.homeRepository.fetchSnapshot();
+    if (_shouldOpenKnowledgeMap(widget.routeArguments)) {
+      _selectedTab = _HomeTab.progress;
+      _showKnowledgeMap = true;
+    }
   }
 
   void _retryHomeSnapshot() {

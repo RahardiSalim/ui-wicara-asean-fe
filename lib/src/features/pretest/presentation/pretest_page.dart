@@ -14,6 +14,7 @@ import 'widgets/assessment_option_tile.dart';
 import 'widgets/confidence_picker.dart';
 import 'widgets/fishbone_canvas.dart';
 import 'widgets/knowledge_state_card.dart';
+import 'widgets/rich_math_text.dart';
 
 enum _PretestStage { question, reasoning, result }
 
@@ -32,21 +33,14 @@ class PretestPage extends StatefulWidget {
 }
 
 class _PretestPageState extends State<PretestPage> {
-  final _reasoningController = TextEditingController(
-    text:
-        'I chose B because defects are the outcome we need to understand before changing the process.',
-  );
+  final _reasoningController = TextEditingController(text: '');
 
-  late final HardcodedAssessmentPack _assessmentPack;
-  late final List<PretestQuestion> _questions;
   _PretestStage _stage = _PretestStage.question;
   PretestQuestion? _question;
-  int _questionIndex = 0;
   String _selectedOptionId = '';
-  final Map<int, String> _pretestAnswers = {};
   int _confidence = 6;
   bool _isSubmitting = false;
-  bool _isLoadingQuestion = false;
+  bool _isLoadingQuestion = true;
   String? _questionError;
   KnowledgeState? _knowledgeState;
   final List<CanvasWorkSnapshot> _canvasSnapshots = [];
@@ -54,11 +48,6 @@ class _PretestPageState extends State<PretestPage> {
   @override
   void initState() {
     super.initState();
-    _assessmentPack = HardcodedAssessmentBank.packForEducation(
-      educationLevel: widget.onboardingController.profile.educationLevel,
-      gradeLevel: widget.onboardingController.profile.gradeLevel,
-    );
-    _questions = _assessmentPack.pretestQuestions;
     _loadQuestion();
   }
 
@@ -68,79 +57,92 @@ class _PretestPageState extends State<PretestPage> {
     super.dispose();
   }
 
-  void _loadQuestion() {
+  Future<void> _loadQuestion() async {
     setState(() {
       _stage = _PretestStage.question;
-      _questionIndex = 0;
       _questionError = null;
-      _question = _questions.first;
+      _question = null;
       _selectedOptionId = '';
-      _pretestAnswers.clear();
       _knowledgeState = null;
       _canvasSnapshots.clear();
-      _isLoadingQuestion = false;
+      _isLoadingQuestion = true;
     });
+    try {
+      final question = await widget.pretestRepository.fetchCurrentQuestion();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _question = question;
+        _isLoadingQuestion = false;
+      });
+    } on PretestException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _questionError = error.message;
+        _isLoadingQuestion = false;
+      });
+    }
   }
 
-  void _submitAnswer() {
+  Future<void> _submitAnswer() async {
     if (_selectedOptionId.isEmpty) {
       _showMessage('Pilih jawaban sebelum lanjut.');
       return;
     }
 
-    _pretestAnswers[_questionIndex] = _selectedOptionId;
-    if (_questionIndex < _questions.length - 1) {
-      setState(() {
-        _questionIndex += 1;
-        _question = _questions[_questionIndex];
-        _selectedOptionId = _pretestAnswers[_questionIndex] ?? '';
-      });
+    await _submitCurrentAnswer(typedReasoning: '', usedCanvas: false);
+  }
+
+  void _openReasoning() {
+    if (_selectedOptionId.isEmpty) {
+      _showMessage('Pilih jawaban sebelum tambah cara.');
       return;
     }
-
-    final correctCount = _assessmentPack.correctCount(
-      kind: HardcodedAssessmentKind.pretest,
-      selectedAnswers: _pretestAnswers,
-    );
-    final totalQuestions = _questions.length;
-    final isReady = correctCount >= 2;
-
-    setState(() {
-      _knowledgeState = KnowledgeState(
-        skill: isReady
-            ? 'Siap mulai belajar ${_assessmentPack.topicTitle}'
-            : 'Fondasi ${_assessmentPack.topicTitle} perlu dipanaskan',
-        gapLabel: '$correctCount/$totalQuestions',
-        message:
-            'Pretest selesai: $correctCount dari $totalQuestions jawaban benar.',
-        pathTitle: 'Jalur belajar ${_assessmentPack.topicTitle} siap',
-        pathMeta:
-            'Pretest 3 soal   |   ${_assessmentPack.topicTitle} ${_assessmentPack.levelLabel}',
-        pathDescription: isReady
-            ? _assessmentPack.readyPathDescription
-            : _assessmentPack.reviewPathDescription,
-      );
-      _stage = _PretestStage.result;
-    });
+    setState(() => _stage = _PretestStage.reasoning);
   }
 
   Future<void> _submitReasoning() async {
+    await _submitCurrentAnswer(
+      typedReasoning: _reasoningController.text,
+      usedCanvas: _canvasSnapshots.isNotEmpty,
+    );
+  }
+
+  Future<void> _submitCurrentAnswer({
+    required String typedReasoning,
+    required bool usedCanvas,
+  }) async {
     setState(() => _isSubmitting = true);
     try {
-      final result = await widget.pretestRepository.submitReasoning(
-        PretestReasoning(
-          answer: _answer,
-          explanation: _reasoningController.text,
-          usedCanvas: _canvasSnapshots.isNotEmpty,
+      final result = await widget.pretestRepository.submitAnswer(
+        PretestAnswer(
+          questionId: _question?.id ?? '',
+          optionId: _selectedOptionId,
+          confidence: _confidence,
+          typedReasoning: typedReasoning,
+          usedCanvas: usedCanvas,
         ),
       );
       if (!mounted) {
         return;
       }
-      setState(() {
-        _knowledgeState = result;
-        _stage = _PretestStage.result;
-      });
+      if (result.completed) {
+        setState(() {
+          _knowledgeState = result.diagnosis;
+          _stage = _PretestStage.result;
+        });
+      } else if (result.nextQuestion != null) {
+        setState(() {
+          _question = result.nextQuestion;
+          _selectedOptionId = '';
+          _reasoningController.clear();
+          _canvasSnapshots.clear();
+          _stage = _PretestStage.question;
+        });
+      }
     } on PretestException catch (error) {
       if (!mounted) {
         return;
@@ -151,14 +153,6 @@ class _PretestPageState extends State<PretestPage> {
         setState(() => _isSubmitting = false);
       }
     }
-  }
-
-  PretestAnswer get _answer {
-    return PretestAnswer(
-      questionId: _question?.id ?? '',
-      optionId: _selectedOptionId,
-      confidence: _confidence,
-    );
   }
 
   PretestOption get _selectedOption =>
@@ -185,17 +179,34 @@ class _PretestPageState extends State<PretestPage> {
       setState(() => _stage = _PretestStage.question);
       return;
     }
-    if (_questionIndex > 0) {
-      setState(() {
-        _questionIndex -= 1;
-        _question = _questions[_questionIndex];
-        _selectedOptionId = _pretestAnswers[_questionIndex] ?? '';
-      });
-      return;
-    }
     Navigator.of(
       context,
     ).pushNamedAndRemoveUntil(AppRoutes.home, (route) => false);
+  }
+
+  Future<void> _selectPathAndGoHome() async {
+    final state = _knowledgeState;
+    if (state == null) {
+      _goHome();
+      return;
+    }
+    setState(() => _isSubmitting = true);
+    try {
+      await widget.pretestRepository.selectPath(state.recommendedPath);
+      if (!mounted) {
+        return;
+      }
+      _goHome();
+    } on PretestException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showMessage(error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   void _goHome() {
@@ -222,13 +233,21 @@ class _PretestPageState extends State<PretestPage> {
                   final verticalPadding = constraints.maxHeight > 700
                       ? 24.0
                       : 12.0;
-                  final canvasWidth = math.min(
+                  final availableWidth = math.max(
+                    0.0,
                     constraints.maxWidth - horizontalPadding * 2,
+                  );
+                  final availableHeight = math.max(
+                    0.0,
+                    constraints.maxHeight - verticalPadding * 2,
+                  );
+                  final canvasWidth = math.min(
+                    availableWidth,
                     860.0,
                   );
-                  final canvasHeight = math.max(
-                    420.0,
-                    constraints.maxHeight - verticalPadding * 2,
+                  final canvasHeight = math.min(
+                    math.max(availableHeight, 220.0),
+                    constraints.maxHeight,
                   );
 
                   return Center(
@@ -286,7 +305,7 @@ class _PretestPageState extends State<PretestPage> {
       return _PretestStateView(
         constraints: constraints,
         title: 'Loading pretest',
-        message: 'Fetching seeded questions from backend.',
+        message: 'Fetching adaptive questions from backend.',
       );
     }
     if (_questionError != null || _question == null) {
@@ -305,20 +324,25 @@ class _PretestPageState extends State<PretestPage> {
         constraints: constraints,
         copy: copy,
         question: question,
-        progressValue: (_questionIndex + 1) / _questions.length,
+        progressValue: (question.progressCurrent / question.progressMax)
+            .clamp(0.0, 1.0)
+            .toDouble(),
         selectedOptionId: _selectedOptionId,
         confidence: _confidence,
         isSubmitting: _isSubmitting,
         onClose: _goHome,
         onSelected: (id) => setState(() => _selectedOptionId = id),
         onConfidenceChanged: (value) => setState(() => _confidence = value),
-        submitLabel: _questionIndex == _questions.length - 1
-            ? 'Selesai pretest'
-            : 'Lanjut',
+        submitLabel: copy.isIndonesian ? 'Kirim jawaban' : 'Submit answer',
+        addEvidenceLabel: copy.isIndonesian
+            ? 'Tambah cara / coretan'
+            : 'Add reasoning / sketch',
         onSubmit: _submitAnswer,
+        onAddEvidence: _openReasoning,
       ),
       _PretestStage.reasoning => _ReasoningStage(
         constraints: constraints,
+        copy: copy,
         question: question,
         selectedOption: _selectedOption,
         controller: _reasoningController,
@@ -332,8 +356,8 @@ class _PretestPageState extends State<PretestPage> {
         constraints: constraints,
         copy: copy,
         result: _knowledgeState,
-        focusAreas: _assessmentPack.focusAreas,
-        onContinue: _goHome,
+        focusAreas: const <AssessmentFocusArea>[],
+        onContinue: _isSubmitting ? () {} : _selectPathAndGoHome,
       ),
     };
   }
@@ -359,7 +383,9 @@ class _PretestStateView extends StatelessWidget {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 18, 28, 30),
       child: ConstrainedBox(
-        constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
+        constraints: BoxConstraints(
+          minHeight: math.max(0.0, constraints.maxHeight - 48),
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -415,7 +441,9 @@ class _QuestionStage extends StatelessWidget {
     required this.onSelected,
     required this.onConfidenceChanged,
     required this.submitLabel,
+    required this.addEvidenceLabel,
     required this.onSubmit,
+    required this.onAddEvidence,
   });
 
   final BoxConstraints constraints;
@@ -429,14 +457,25 @@ class _QuestionStage extends StatelessWidget {
   final ValueChanged<String> onSelected;
   final ValueChanged<int> onConfidenceChanged;
   final String submitLabel;
+  final String addEvidenceLabel;
   final VoidCallback onSubmit;
+  final VoidCallback onAddEvidence;
 
   @override
   Widget build(BuildContext context) {
+    final compact = constraints.maxHeight < 700;
+    final horizontalPadding = constraints.maxWidth < 360 ? 18.0 : 28.0;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(28, 14, 28, 22),
+      padding: EdgeInsets.fromLTRB(
+        horizontalPadding,
+        compact ? 10 : 14,
+        horizontalPadding,
+        22,
+      ),
       child: ConstrainedBox(
-        constraints: BoxConstraints(minHeight: constraints.maxHeight - 36),
+        constraints: BoxConstraints(
+          minHeight: math.max(0.0, constraints.maxHeight - 36),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -444,7 +483,7 @@ class _QuestionStage extends StatelessWidget {
               leading: Icons.close_rounded,
               onLeadingPressed: onClose,
             ),
-            const SizedBox(height: 54),
+            SizedBox(height: compact ? 22 : 54),
             Text(
               'Pretest',
               style: Theme.of(
@@ -461,9 +500,14 @@ class _QuestionStage extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _SlimProgress(value: progressValue),
-            const SizedBox(height: 31),
+            SizedBox(height: compact ? 20 : 31),
             Container(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 21),
+              padding: EdgeInsets.fromLTRB(
+                compact ? 18 : 24,
+                compact ? 18 : 24,
+                compact ? 18 : 24,
+                21,
+              ),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(17),
@@ -500,16 +544,16 @@ class _QuestionStage extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 26),
-                  Text(
+                  SizedBox(height: compact ? 18 : 26),
+                  RichMathText(
                     question.prompt,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontSize: 20,
                       height: 1.22,
                     ),
                   ),
-                  const SizedBox(height: 25),
-                  Text(
+                  SizedBox(height: compact ? 18 : 25),
+                  RichMathText(
                     question.helper,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: WicaraColors.muted,
@@ -517,7 +561,7 @@ class _QuestionStage extends StatelessWidget {
                       height: 1.3,
                     ),
                   ),
-                  const SizedBox(height: 26),
+                  SizedBox(height: compact ? 18 : 26),
                   for (
                     var index = 0;
                     index < question.options.length;
@@ -544,6 +588,22 @@ class _QuestionStage extends StatelessWidget {
                     onPressed: selectedOptionId.isEmpty ? null : onSubmit,
                     isLoading: isSubmitting,
                   ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: selectedOptionId.isEmpty || isSubmitting
+                        ? null
+                        : onAddEvidence,
+                    icon: const Icon(Icons.edit_note_rounded, size: 20),
+                    label: Text(addEvidenceLabel),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: WicaraColors.secondaryDeep,
+                      side: const BorderSide(color: WicaraColors.secondaryLight),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -559,6 +619,7 @@ class _QuestionStage extends StatelessWidget {
 class _ReasoningStage extends StatelessWidget {
   const _ReasoningStage({
     required this.constraints,
+    required this.copy,
     required this.question,
     required this.selectedOption,
     required this.controller,
@@ -570,6 +631,7 @@ class _ReasoningStage extends StatelessWidget {
   });
 
   final BoxConstraints constraints;
+  final OnboardingCopy copy;
   final PretestQuestion question;
   final PretestOption selectedOption;
   final TextEditingController controller;
@@ -581,13 +643,20 @@ class _ReasoningStage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = constraints.maxHeight < 700;
+    final horizontalPadding = constraints.maxWidth < 360 ? 18.0 : 28.0;
     return SizedBox(
-      height: constraints.maxHeight,
+      height: math.max(0.0, constraints.maxHeight),
       child: Column(
         children: [
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(28, 14, 28, 18),
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                compact ? 10 : 14,
+                horizontalPadding,
+                18,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -595,9 +664,11 @@ class _ReasoningStage extends StatelessWidget {
                     leading: Icons.chevron_left_rounded,
                     onLeadingPressed: onBack,
                   ),
-                  const SizedBox(height: 48),
+                  SizedBox(height: compact ? 22 : 48),
                   Text(
-                    'Help us understand your thinking',
+                    copy.isIndonesian
+                        ? 'Tambah cara atau coretan'
+                        : 'Add reasoning or canvas work',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontSize: 22,
                       height: 1.14,
@@ -605,13 +676,15 @@ class _ReasoningStage extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Review the question, your answer, then explain your reasoning.',
+                    copy.isIndonesian
+                        ? 'Opsional: tulis langkahmu atau lampirkan coretan. Ini menaikkan confidence diagnosis, tapi jawaban pilihan ganda tetap jadi anchor.'
+                        : 'Optional: type your steps or attach canvas work. This helps diagnosis confidence, but your MCQ answer stays the anchor.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: WicaraColors.muted,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 27),
+                  SizedBox(height: compact ? 18 : 27),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: _ChatBubble(text: question.prompt, isUser: false),
@@ -625,11 +698,12 @@ class _ReasoningStage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Align(
+                  Align(
                     alignment: Alignment.centerLeft,
                     child: _ChatBubble(
-                      text:
-                          'Why did you choose this answer? Explain your thinking.',
+                      text: copy.isIndonesian
+                          ? 'Mau tambah cara? Ketik di bawah atau pakai canvas.'
+                          : 'Want to add your method? Type it below or use canvas.',
                       isUser: false,
                     ),
                   ),
@@ -637,6 +711,7 @@ class _ReasoningStage extends StatelessWidget {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: _CanvasPromptBubble(
+                      copy: copy,
                       hasCanvasWork: canvasSnapshots.isNotEmpty,
                       onUseCanvas: onUseCanvas,
                     ),
@@ -657,6 +732,8 @@ class _ReasoningStage extends StatelessWidget {
           ),
           _ReasoningFooter(
             controller: controller,
+            horizontalPadding: horizontalPadding,
+            copy: copy,
             isSubmitting: isSubmitting,
             onSubmit: onSubmit,
           ),
@@ -669,11 +746,15 @@ class _ReasoningStage extends StatelessWidget {
 class _ReasoningFooter extends StatelessWidget {
   const _ReasoningFooter({
     required this.controller,
+    required this.horizontalPadding,
+    required this.copy,
     required this.isSubmitting,
     required this.onSubmit,
   });
 
   final TextEditingController controller;
+  final double horizontalPadding;
+  final OnboardingCopy copy;
   final bool isSubmitting;
   final VoidCallback onSubmit;
 
@@ -692,7 +773,7 @@ class _ReasoningFooter extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(28, 11, 28, 14),
+        padding: EdgeInsets.fromLTRB(horizontalPadding, 11, horizontalPadding, 14),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -713,7 +794,9 @@ class _ReasoningFooter extends StatelessWidget {
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
-                    'Same evidence pipeline (InputEvent)',
+                    copy.isIndonesian
+                        ? 'Evidence opsional; jawaban MCQ tetap utama'
+                        : 'Optional evidence; MCQ answer stays primary',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -766,7 +849,9 @@ class _ResultStage extends StatelessWidget {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 14, 28, 22),
       child: ConstrainedBox(
-        constraints: BoxConstraints(minHeight: constraints.maxHeight - 36),
+        constraints: BoxConstraints(
+          minHeight: math.max(0.0, constraints.maxHeight - 36),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -785,7 +870,15 @@ class _ResultStage extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 38),
+            if (state.masteryScore != null || state.confidence != null) ...[
+              const SizedBox(height: 22),
+              _ScoreSummaryCard(
+                masteryScore: state.masteryScore,
+                confidence: state.confidence,
+                copy: copy,
+              ),
+            ],
+            const SizedBox(height: 28),
             _KnowledgeGapDiagnosisCard(
               gapLabel: state.gapLabel,
               message: state.message,
@@ -828,6 +921,88 @@ class _ResultStage extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ScoreSummaryCard extends StatelessWidget {
+  const _ScoreSummaryCard({
+    required this.masteryScore,
+    required this.confidence,
+    required this.copy,
+  });
+
+  final double? masteryScore;
+  final double? confidence;
+  final OnboardingCopy copy;
+
+  @override
+  Widget build(BuildContext context) {
+    final scorePercent = ((masteryScore ?? 0).clamp(0.0, 1.0) * 100).round();
+    final confidencePercent = confidence == null
+        ? null
+        : ((confidence!.clamp(0.0, 1.0)) * 100).round();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(17, 15, 17, 15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: WicaraColors.line, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: WicaraColors.shadowBlue.withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 9),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: WicaraColors.primarySoft,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              '$scorePercent%',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: WicaraColors.primaryDeep,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  copy.scoreLabel,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: WicaraColors.text,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  confidencePercent == null
+                      ? 'Mastery estimate from adaptive pretest'
+                      : 'Confidence $confidencePercent% from answer evidence',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: WicaraColors.muted,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1131,7 +1306,7 @@ class _ChatBubble extends StatelessWidget {
           ),
         ],
       ),
-      child: Text(
+      child: RichMathText(
         text,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: isUser ? WicaraColors.text : WicaraColors.muted,
@@ -1145,15 +1320,28 @@ class _ChatBubble extends StatelessWidget {
 
 class _CanvasPromptBubble extends StatelessWidget {
   const _CanvasPromptBubble({
+    required this.copy,
     required this.hasCanvasWork,
     required this.onUseCanvas,
   });
 
+  final OnboardingCopy copy;
   final bool hasCanvasWork;
   final VoidCallback onUseCanvas;
 
   @override
   Widget build(BuildContext context) {
+    final message = copy.isIndonesian
+        ? (hasCanvasWork
+              ? 'Coretan canvas sudah masuk. Tambah lagi kalau perlu.'
+              : 'Butuh papan coret? Buka canvas dan kirim coretanmu.')
+        : (hasCanvasWork
+              ? 'Canvas work is attached. Add another sketch if needed.'
+              : 'Need a whiteboard? Open canvas and send your sketch here.');
+    final buttonLabel = copy.isIndonesian
+        ? (hasCanvasWork ? 'Buka canvas' : 'Pakai canvas')
+        : (hasCanvasWork ? 'Open canvas' : 'Use canvas');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1173,9 +1361,7 @@ class _CanvasPromptBubble extends StatelessWidget {
             ],
           ),
           child: Text(
-            hasCanvasWork
-                ? 'Canvas work is attached. Add another sketch if needed.'
-                : 'Need a whiteboard? Open canvas and send your sketch here.',
+            message,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: WicaraColors.muted,
               fontWeight: FontWeight.w600,
@@ -1185,7 +1371,7 @@ class _CanvasPromptBubble extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         _CanvasQuickActionButton(
-          label: hasCanvasWork ? 'Open canvas' : 'Use canvas',
+          label: buttonLabel,
           onPressed: onUseCanvas,
         ),
       ],
@@ -1354,7 +1540,7 @@ class _ReasoningInput extends StatelessWidget {
             minLines: 1,
             maxLines: 2,
             decoration: InputDecoration(
-              hintText: 'Type your answer...',
+              hintText: 'Type your method, or leave empty to submit...',
               filled: true,
               fillColor: WicaraColors.fieldFill,
               contentPadding: const EdgeInsets.symmetric(

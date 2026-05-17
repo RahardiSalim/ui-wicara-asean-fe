@@ -286,7 +286,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Pretest Perkalian'), findsWidgets);
+    expect(find.text('Perkalian'), findsWidgets);
     expect(find.text('Lanjut'), findsOneWidget);
 
     await tester.ensureVisible(find.text('12'));
@@ -295,24 +295,30 @@ void main() {
     await tester.ensureVisible(find.text('Lanjut'));
     await tester.tap(find.text('Lanjut'));
     await tester.pumpAndSettle();
+    expect(find.text('Help us understand your thinking'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('4 + 4 + 4 + 4 + 4'));
-    await tester.tap(find.text('4 + 4 + 4 + 4 + 4'));
+    await tester.enterText(find.byType(TextField).last, '4 groups of 3 is 12');
+    await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('22'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('22'));
+    await tester.tap(find.text('22'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Lanjut'));
     await tester.tap(find.text('Lanjut'));
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('43'));
-    await tester.tap(find.text('43'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Selesai pretest'));
-    await tester.tap(find.text('Selesai pretest'));
+    await tester.enterText(
+      find.byType(TextField).last,
+      '6 x 4 is 24, minus 2 is 22',
+    );
+    await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
     await tester.pumpAndSettle();
 
     expect(find.text('Your knowledge state'), findsOneWidget);
     expect(
-      find.text('Pretest selesai: 3 dari 3 jawaban benar.'),
+      find.text('Kamu sudah siap di Perkalian; cukup review singkat.'),
       findsOneWidget,
     );
   });
@@ -445,6 +451,53 @@ class _FakeLearningGoalRepository implements LearningGoalRepository {
   const _FakeLearningGoalRepository();
 
   @override
+  Future<ActiveLearningGoal?> fetchActiveGoal() async => null;
+
+  @override
+  Future<LearningGoalResolution> resolveLearningGoal({
+    required String rawQuery,
+    String? subjectCode,
+    String? educationLevel,
+    String? gradeLevel,
+    String? language,
+  }) async {
+    return const LearningGoalResolution(
+      resolutionId: 'resolution-1',
+      status: 'needs_confirmation',
+      confidence: 0.91,
+      suggestedConcept: LearningConceptSuggestion(
+        conceptId: 'concept-1',
+        conceptCode: 'math.multiplication',
+        title: 'Perkalian',
+        subject: 'Matematika',
+        description: 'Memahami perkalian sebagai kelompok sama banyak.',
+        subjectCode: 'math',
+        gradeBand: 'primary',
+        gradeRelation: 'below_current_level',
+        levelNote:
+            'This is a foundational concept below your current grade. It is still useful for review or prerequisite repair.',
+        confidence: 0.91,
+      ),
+      clarificationQuestion: 'Benar kamu mau belajar Perkalian?',
+    );
+  }
+
+  @override
+  Future<LearningGoalBootstrap> confirmResolvedGoal({
+    required String resolutionId,
+  }) async {
+    return const LearningGoalBootstrap(learningGoalId: 'goal-1');
+  }
+
+  @override
+  Future<LearningGoalResolution> selectResolvedConcept({
+    required String resolutionId,
+    required String conceptId,
+  }) async {
+    return resolveLearningGoal(rawQuery: 'Perkalian');
+  }
+
+  @override
   Future<LearningGoalBootstrap> createLearningGoal({
     required String rawTopic,
   }) async {
@@ -454,6 +507,27 @@ class _FakeLearningGoalRepository implements LearningGoalRepository {
       trackId: 'track-1',
     );
   }
+
+  @override
+  Future<List<LearningConceptSuggestion>> searchMaterials({
+    required String query,
+    String? subjectCode,
+  }) async {
+    return const [
+      LearningConceptSuggestion(
+        conceptId: 'concept-1',
+        conceptCode: 'math.multiplication',
+        title: 'Perkalian',
+        subject: 'Matematika',
+        description: 'Memahami perkalian sebagai kelompok sama banyak.',
+        subjectCode: 'math',
+        gradeBand: 'primary',
+      ),
+    ];
+  }
+
+  @override
+  Future<void> cancelGoal({required String learningGoalId}) async {}
 }
 
 class _FakeHomeRepository implements HomeRepository {
