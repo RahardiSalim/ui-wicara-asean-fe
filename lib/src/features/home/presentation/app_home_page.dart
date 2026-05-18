@@ -831,6 +831,7 @@ class _AppHomePageState extends State<AppHomePage> {
         constraints: constraints,
         homeRepository: widget.homeRepository,
         curriculumRepository: widget.curriculumRepository,
+        preferredLanguage: widget.onboardingController.profile.preferredLanguage,
         onBack: _openHome,
         showLearningReport: _showLearningReport,
         showKnowledgeMap: _showKnowledgeMap,
@@ -3475,6 +3476,13 @@ String _languageCode(String language) {
   };
 }
 
+String _apiLocale(String language) {
+  return switch (language.trim().toLowerCase()) {
+    'id' || 'indonesian' || 'bahasa indonesia' => 'id',
+    _ => 'en',
+  };
+}
+
 IconData _actionIcon(String actionType) {
   return switch (actionType.toLowerCase()) {
     'review' => Icons.calendar_today_rounded,
@@ -5330,15 +5338,24 @@ class _ShortcutItem extends StatelessWidget {
                 size: isSelected ? 24 : 23,
               ),
               const SizedBox(height: 4),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: isSelected ? Colors.white : inactiveColor,
-                  fontSize: 10,
-                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
-                  letterSpacing: -0.1,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: isSelected ? Colors.white : inactiveColor,
+                      fontSize: 10,
+                      fontWeight: isSelected
+                          ? FontWeight.w900
+                          : FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -6129,6 +6146,7 @@ class _ProgressHub extends StatelessWidget {
     required this.constraints,
     required this.homeRepository,
     required this.curriculumRepository,
+    required this.preferredLanguage,
     required this.onBack,
     required this.showLearningReport,
     required this.showKnowledgeMap,
@@ -6142,6 +6160,7 @@ class _ProgressHub extends StatelessWidget {
   final BoxConstraints constraints;
   final HomeRepository homeRepository;
   final CurriculumRepository curriculumRepository;
+  final String preferredLanguage;
   final VoidCallback onBack;
   final bool showLearningReport;
   final bool showKnowledgeMap;
@@ -6166,6 +6185,7 @@ class _ProgressHub extends StatelessWidget {
       return _KnowledgeMapDetail(
         constraints: constraints,
         curriculumRepository: curriculumRepository,
+        preferredLanguage: preferredLanguage,
         onBack: onCloseKnowledgeMap,
       );
     }
@@ -7274,11 +7294,13 @@ class _KnowledgeMapDetail extends StatefulWidget {
   const _KnowledgeMapDetail({
     required this.constraints,
     required this.curriculumRepository,
+    required this.preferredLanguage,
     required this.onBack,
   });
 
   final BoxConstraints constraints;
   final CurriculumRepository curriculumRepository;
+  final String preferredLanguage;
   final VoidCallback onBack;
 
   @override
@@ -7311,14 +7333,28 @@ class _KnowledgeMapDetailState extends State<_KnowledgeMapDetail> {
     _loadCurriculum();
   }
 
+  @override
+  void didUpdateWidget(covariant _KnowledgeMapDetail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_apiLocale(oldWidget.preferredLanguage) ==
+        _apiLocale(widget.preferredLanguage)) {
+      return;
+    }
+    _loadCurriculum();
+  }
+
   Future<void> _loadCurriculum() async {
     final requestSerial = ++_curriculumRequestSerial;
+    final locale = _apiLocale(widget.preferredLanguage);
     try {
-      final subjects = await widget.curriculumRepository.fetchSubjects();
+      final subjects = await widget.curriculumRepository.fetchSubjects(
+        locale: locale,
+      );
       final tabs = _subjectTabsFromApi(subjects);
       final selectedSubjectCode = _defaultSubjectCode(tabs);
       final graph = await widget.curriculumRepository.fetchKnowledgeMap(
         subject: selectedSubjectCode,
+        locale: locale,
       );
 
       if (!mounted || requestSerial != _curriculumRequestSerial) {
@@ -7362,6 +7398,7 @@ class _KnowledgeMapDetailState extends State<_KnowledgeMapDetail> {
     }
 
     final requestSerial = ++_curriculumRequestSerial;
+    final locale = _apiLocale(widget.preferredLanguage);
     setState(() {
       _selectedSubjectCode = subject.code;
       _isLoadingCurriculum = true;
@@ -7373,6 +7410,7 @@ class _KnowledgeMapDetailState extends State<_KnowledgeMapDetail> {
     try {
       final graph = await widget.curriculumRepository.fetchKnowledgeMap(
         subject: subject.code,
+        locale: locale,
       );
 
       if (!mounted || requestSerial != _curriculumRequestSerial) {
@@ -7475,6 +7513,7 @@ class _KnowledgeMapDetailState extends State<_KnowledgeMapDetail> {
       final detail = await widget.curriculumRepository.fetchConceptDetail(
         conceptCode: node.id,
         subject: _selectedSubjectCode,
+        locale: _apiLocale(widget.preferredLanguage),
       );
       return _ConceptDetailData.fromApi(detail, fallbackNode: node);
     } catch (_) {
@@ -7528,6 +7567,8 @@ class _KnowledgeMapDetailState extends State<_KnowledgeMapDetail> {
                   children: [
                     Text(
                       _graph.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: WicaraColors.text,
                         fontSize: 14,
@@ -7573,25 +7614,33 @@ class _SubjectMapTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 36,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final columns = width >= 420 ? 3 : 2;
+        final itemWidth = ((width - (8 * (columns - 1))) / columns).clamp(
+          104.0,
+          140.0,
+        ).toDouble();
+
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
-            for (var index = 0; index < subjects.length; index++) ...[
-              _SubjectMapTabButton(
-                item: subjects[index],
-                isSelected: subjects[index].code == selectedCode,
-                onSelected: () => onSelected(subjects[index]),
+            for (final subject in subjects)
+              SizedBox(
+                width: itemWidth,
+                child: _SubjectMapTabButton(
+                  item: subject,
+                  isSelected: subject.code == selectedCode,
+                  onSelected: () => onSelected(subject),
+                ),
               ),
-              if (index != subjects.length - 1) const SizedBox(width: 8),
-            ],
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -7621,34 +7670,41 @@ class _SubjectMapTabButton extends StatelessWidget {
     return InkWell(
       onTap: item.isLocked ? null : onSelected,
       borderRadius: BorderRadius.circular(999),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        height: 34,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isSelected ? item.color.withValues(alpha: 0.1) : Colors.white,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: borderColor),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (item.isLocked) ...[
-              Icon(Icons.lock_rounded, size: 12, color: textColor),
-              const SizedBox(width: 4),
-            ],
-            Text(
-              item.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: textColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+      child: SizedBox(
+        width: double.infinity,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected
+                ? item.color.withValues(alpha: 0.1)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (item.isLocked) ...[
+                Icon(Icons.lock_rounded, size: 12, color: textColor),
+                const SizedBox(width: 4),
+              ],
+              Flexible(
+                child: Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: textColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -7945,7 +8001,7 @@ class _KnowledgeGraphCanvas extends StatelessWidget {
             SizedBox(
               height: layout.height,
               child: Stack(
-                clipBehavior: Clip.none,
+                clipBehavior: Clip.hardEdge,
                 children: [
                   Positioned.fill(
                     child: CustomPaint(
@@ -8034,9 +8090,11 @@ class _MapGroupHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final displayLabel = _mapGroupHeaderLabel(label);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      constraints: const BoxConstraints(minHeight: 38),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      constraints: const BoxConstraints.tightFor(height: 44),
       decoration: BoxDecoration(
         color: WicaraColors.speechBlue,
         borderRadius: BorderRadius.circular(12),
@@ -8044,18 +8102,41 @@ class _MapGroupHeader extends StatelessWidget {
       ),
       child: Center(
         child: Text(
-          label,
+          displayLabel,
           textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          softWrap: true,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: WicaraColors.primaryDeep,
-            fontSize: 10,
+            fontSize: 9.5,
             fontWeight: FontWeight.w800,
-            height: 1.12,
+            height: 1.05,
           ),
         ),
       ),
     );
   }
+}
+
+String _mapGroupHeaderLabel(String label) {
+  final text = label.trim();
+  if (!text.contains(' - ')) {
+    return text;
+  }
+
+  final parts = text.split(' - ');
+  if (parts.length < 2) {
+    return text;
+  }
+
+  final subject = parts.first.trim();
+  final section = parts.skip(1).join(' - ').trim();
+  if (subject.isEmpty || section.isEmpty) {
+    return text;
+  }
+
+  return '$subject\n$section';
 }
 
 class _KnowledgeGraphLayout {
@@ -8145,14 +8226,18 @@ class _KnowledgeGraphLayout {
             return sectionCompare;
           }
           return a.y.compareTo(b.y);
-        });
+      });
       final headerLabel = _levelLabel(levelNodes, sectionLabelByNodeId);
+      final headerWidth = math.min(
+        maxWidth,
+        maxWidth >= 360 ? 236.0 : maxWidth,
+      );
       headers.add(
         _GraphHeaderPlacement(
           label: headerLabel,
-          left: math.max(0.0, (maxWidth - 198.0) / 2),
+          left: math.max(0.0, (maxWidth - headerWidth) / 2),
           top: top,
-          width: math.min(198.0, maxWidth),
+          width: headerWidth,
         ),
       );
       top += headerHeight + headerGap;
@@ -9268,8 +9353,21 @@ List<_KnowledgeSection> _focusOrderedSections(
 int _focusSectionRank(String label, String subjectCode) {
   final normalizedSubject = subjectCode.trim().toLowerCase();
   final normalizedLabel = label.trim().toLowerCase();
-  final isIpas = normalizedLabel.startsWith('ipas');
-  final isIpa = normalizedLabel.startsWith('ipa terpadu');
+  final isIpas =
+      normalizedLabel.startsWith('ipas') ||
+      normalizedLabel.startsWith('science and social studies');
+  final isIpa =
+      normalizedLabel.startsWith('ipa terpadu') ||
+      normalizedLabel.startsWith('integrated science');
+  final isFisika =
+      normalizedLabel.startsWith('fisika') ||
+      normalizedLabel.startsWith('physics');
+  final isKimia =
+      normalizedLabel.startsWith('kimia') ||
+      normalizedLabel.startsWith('chemistry');
+  final isBiologi =
+      normalizedLabel.startsWith('biologi') ||
+      normalizedLabel.startsWith('biology');
 
   return switch (normalizedSubject) {
     'matematika' || 'math' => normalizedLabel.contains(' - ') ? 1 : 0,
@@ -9281,7 +9379,7 @@ int _focusSectionRank(String label, String subjectCode) {
           ? 1
           : 2,
     'fisika' =>
-      normalizedLabel.startsWith('fisika')
+      isFisika
           ? 0
           : isIpa
           ? 1
@@ -9289,7 +9387,7 @@ int _focusSectionRank(String label, String subjectCode) {
           ? 2
           : 3,
     'kimia' =>
-      normalizedLabel.startsWith('kimia')
+      isKimia
           ? 0
           : isIpa
           ? 1
@@ -9297,7 +9395,7 @@ int _focusSectionRank(String label, String subjectCode) {
           ? 2
           : 3,
     'biologi' =>
-      normalizedLabel.startsWith('biologi')
+      isBiologi
           ? 0
           : isIpa
           ? 1
