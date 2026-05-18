@@ -11,6 +11,7 @@ import '../../home/domain/home_snapshot.dart';
 import '../../onboarding/application/onboarding_controller.dart';
 import '../../onboarding/domain/onboarding_copy.dart';
 import '../../pretest/domain/multiplication_assessment_bank.dart';
+import '../../pretest/presentation/widgets/rich_math_text.dart';
 import '../../pretest/presentation/widgets/fishbone_canvas.dart';
 import '../domain/workspace_models.dart';
 import '../domain/workspace_repository.dart';
@@ -60,7 +61,7 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
   WorkspaceSession? _workspace;
   bool _isLoadingWorkspace = true;
   bool _isAppendingEvent = false;
-  bool _moduleCompleted = false;
+  bool _isPhaseSubmitting = false;
   String? _workspaceError;
   bool _isVideoGenerating = false;
   bool _stopVideoPolling = false;
@@ -254,6 +255,7 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
     _workspace = null;
     _activeSessionId = nextActiveSessionId;
     _isAppendingEvent = false;
+    _isPhaseSubmitting = false;
     _isVideoGenerating = false;
     _stopVideoPolling = true;
     _chatEntries.clear();
@@ -421,6 +423,7 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
             _contentMode = _WorkspaceContentMode.videoProcessing;
           }
         });
+        _scrollToBottomIfNearBottom();
 
         if (status.isFinal) {
           if (status.isReady) {
@@ -1430,45 +1433,76 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
         'confidence': isCorrect ? 8 : 4,
       },
     );
-    final arguments = widget.routeArguments;
-    if (isCorrect && arguments != null && arguments.isValid) {
-      await widget.workspaceRepository.updateModuleState(
-        trackId: arguments.trackId,
-        moduleId: arguments.moduleId,
-        status: 'completed',
-      );
-    }
-    if (isCorrect && mounted) {
-      setState(() => _moduleCompleted = true);
-      _openPosttestFromWorkspace(
-        moduleCompleted: true,
-        requestedEarlyPosttest: false,
-      );
-      return;
-    }
     _scrollToBottom();
   }
 
-  Future<void> _requestPosttest() async {
-    if (_moduleCompleted) {
-      _openPosttestFromWorkspace(
-        moduleCompleted: true,
-        requestedEarlyPosttest: false,
-      );
+  Future<void> _advancePhase({bool force = false}) async {
+    final workspace = _workspace;
+    if (workspace == null || _isLoadingWorkspace || _isPhaseSubmitting) {
       return;
     }
+    setState(() {
+      _isPhaseSubmitting = true;
+      _workspaceError = null;
+    });
+    try {
+      final updated = await widget.workspaceRepository.advancePhase(
+        workspaceId: workspace.id,
+        force: force,
+      );
+      if (!mounted || _workspace?.id != workspace.id) {
+        return;
+      }
+      final arguments = widget.routeArguments;
+      var history = _sessionHistory;
+      if (arguments != null && arguments.isValid) {
+        try {
+          history = await widget.workspaceRepository.fetchSessionHistory(
+            trackId: arguments.trackId,
+            moduleId: arguments.moduleId,
+          );
+        } on WorkspaceException {
+          history = _sessionHistory;
+        }
+      }
+      if (!mounted || _workspace?.id != workspace.id) {
+        return;
+      }
+      setState(() {
+        _workspace = updated;
+        _sessionHistory = history;
+        _isPhaseSubmitting = false;
+      });
+    } on WorkspaceException catch (error) {
+      if (!mounted || _workspace?.id != workspace.id) {
+        return;
+      }
+      setState(() {
+        _isPhaseSubmitting = false;
+        _workspaceError = error.message;
+      });
+    }
+  }
 
+  Future<void> _startPosttestFromWorkspace() async {
+    final workspace = _workspace;
+    if (workspace == null ||
+        _isLoadingWorkspace ||
+        _isPhaseSubmitting ||
+        !workspace.posttestEligible) {
+      return;
+    }
     final shouldStart = await showDialog<bool>(
       context: context,
       builder: (context) {
         final material = _workspaceMaterial;
         return AlertDialog(
-          title: Text(material.posttestWarningTitle),
-          content: Text(material.posttestWarningBody),
+          title: Text(material.startPosttestButtonLabel),
+          content: Text(material.posttestReadyBody),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: Text(material.keepLearningLabel),
+              child: Text(material.cancelLabel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
@@ -1478,11 +1512,36 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
         );
       },
     );
-    if (shouldStart == true && mounted) {
-      _openPosttestFromWorkspace(
-        moduleCompleted: false,
-        requestedEarlyPosttest: true,
+    if (shouldStart != true) {
+      return;
+    }
+    setState(() {
+      _isPhaseSubmitting = true;
+      _workspaceError = null;
+    });
+    try {
+      final updated = await widget.workspaceRepository.startPosttest(
+        workspaceId: workspace.id,
       );
+      if (!mounted || _workspace?.id != workspace.id) {
+        return;
+      }
+      setState(() {
+        _workspace = updated;
+        _isPhaseSubmitting = false;
+      });
+      _openPosttestFromWorkspace(
+        moduleCompleted: true,
+        requestedEarlyPosttest: false,
+      );
+    } on WorkspaceException catch (error) {
+      if (!mounted || _workspace?.id != workspace.id) {
+        return;
+      }
+      setState(() {
+        _isPhaseSubmitting = false;
+        _workspaceError = error.message;
+      });
     }
   }
 
@@ -1702,6 +1761,55 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
     );
   }
 
+  bool _canAdvancePhase(WorkspaceSession? workspace) {
+    if (workspace == null) {
+      return false;
+    }
+    if (workspace.currentPhase == 'evaluate') {
+      return false;
+    }
+    if (_isLoadingWorkspace || _isPhaseSubmitting || _isAppendingEvent) {
+      return false;
+    }
+    return workspace.phaseTransitionPending;
+  }
+
+  bool _canForceAdvancePhase(WorkspaceSession? workspace) {
+    if (workspace == null) {
+      return false;
+    }
+    if (workspace.currentPhase == 'evaluate') {
+      return false;
+    }
+    return !_isLoadingWorkspace && !_isPhaseSubmitting && !_isAppendingEvent;
+  }
+
+  Future<void> _requestForceAdvancePhase() async {
+    final shouldForce = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final material = _workspaceMaterial;
+        return AlertDialog(
+          title: Text(material.forceAdvancePhaseLabel),
+          content: Text(material.forceAdvancePhaseBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(material.cancelLabel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(material.forceAdvancePhaseLabel),
+            ),
+          ],
+        );
+      },
+    );
+    if (shouldForce == true) {
+      await _advancePhase(force: true);
+    }
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
@@ -1713,12 +1821,30 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
     });
   }
 
+  void _scrollToBottomIfNearBottom() {
+    if (!_scrollController.hasClients) {
+      _scrollToBottom();
+      return;
+    }
+    final position = _scrollController.position;
+    final distanceToBottom = position.maxScrollExtent - position.pixels;
+    if (distanceToBottom <= 120) {
+      _scrollToBottom();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final copy = OnboardingCopy.forLanguage(
       widget.onboardingController.profile.preferredLanguage,
     );
     final material = _workspaceMaterial;
+    final workspace = _workspace;
+    final showStartPosttestButton = workspace?.posttestEligible ?? false;
+    final canAdvancePhase = _canAdvancePhase(workspace);
+    final canForceAdvancePhase = _canForceAdvancePhase(workspace);
+    final showCheckUnderstanding =
+        (workspace?.currentPhase ?? 'engage') == 'evaluate';
     final workspaceDescription =
         (_workspace?.currentTopicDescription.trim().isNotEmpty ?? false)
         ? _workspace!.currentTopicDescription.trim()
@@ -1785,6 +1911,13 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
                                 material.topicTitle,
                             description: workspaceDescription,
                           ),
+                          const SizedBox(height: 12),
+                          _PhaseStepperBar(
+                            currentPhase: workspace?.currentPhase ?? 'engage',
+                            phaseTransitionPending:
+                                workspace?.phaseTransitionPending ?? false,
+                            material: material,
+                          ),
                           const SizedBox(height: 10),
                           Row(
                             children: [
@@ -1815,18 +1948,21 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          OutlinedButton.icon(
-                            onPressed: _isLoadingWorkspace
-                                ? null
-                                : () {
-                                    unawaited(_requestPosttest());
-                                  },
-                            icon: const Icon(
-                              Icons.assignment_turned_in_outlined,
+                          if (showStartPosttestButton) ...[
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              onPressed:
+                                  _isLoadingWorkspace || _isPhaseSubmitting
+                                  ? null
+                                  : () {
+                                      unawaited(_startPosttestFromWorkspace());
+                                    },
+                              icon: const Icon(
+                                Icons.assignment_turned_in_outlined,
+                              ),
+                              label: Text(material.startPosttestButtonLabel),
                             ),
-                            label: Text(material.startPosttestButtonLabel),
-                          ),
+                          ],
                         ],
                       ),
                     ),
@@ -1872,6 +2008,7 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
                                   unawaited(_startLearningChat());
                                 },
                                 onOpenCanvas: _openCanvas,
+                                showCheckUnderstanding: showCheckUnderstanding,
                               ),
                             ),
                           );
@@ -1881,14 +2018,20 @@ class _WorkspaceModulesPageState extends State<WorkspaceModulesPage> {
                     _WorkspaceFooter(
                       controller: _messageController,
                       onSend: _sendMessage,
+                      onAdvancePhase: () {
+                        unawaited(_advancePhase());
+                      },
+                      onForceAdvancePhase: () {
+                        unawaited(_requestForceAdvancePhase());
+                      },
                       onGenerateVideo: () {
                         unawaited(_generateVideo());
                       },
+                      canAdvancePhase: canAdvancePhase,
+                      canForceAdvancePhase: canForceAdvancePhase,
+                      isPhaseSubmitting: _isPhaseSubmitting,
                       isVideoGenerating: _isVideoGenerating,
                       canGenerateVideo: _canGenerateVideoForCurrentTopic(),
-                      contentMode: _contentMode,
-                      videoStatusMessage: _videoStatusMessage,
-                      videoErrorMessage: _videoErrorMessage,
                       copy: copy,
                       material: material,
                     ),
@@ -2057,8 +2200,35 @@ class _LocalizedWorkspaceMaterial {
       isIndonesian ? 'Ruang belajar' : 'Workspace';
   String get newChatLabel => isIndonesian ? 'Chat baru' : 'New chat';
   String get chatHistoryTitle => isIndonesian ? 'Riwayat chat' : 'Chat history';
+  String get advancePhaseLabel =>
+      isIndonesian ? 'Lanjut fase' : 'Advance phase';
+  String get advancingPhaseLabel =>
+      isIndonesian ? 'Memindahkan fase...' : 'Advancing phase...';
+  String get forceAdvancePhaseLabel =>
+      isIndonesian ? 'Lanjut paksa' : 'Force advance';
+  String get forceAdvancePhaseBody => isIndonesian
+      ? 'Gunakan hanya jika tutor belum menandai siap. Backend tetap memvalidasi minimum turn pada fase ini.'
+      : 'Use this only if tutor has not marked the phase ready yet. Backend still validates minimum turns for this phase.';
+  String get phaseTransitionHint => isIndonesian
+      ? "Tekan 'Lanjut fase' kalau sudah paham."
+      : "Tap 'Advance phase' when you are ready.";
+  String phaseLabel(String phase) {
+    return switch (phase.trim().toLowerCase()) {
+      'engage' => isIndonesian ? 'Engage' : 'Engage',
+      'explore' => isIndonesian ? 'Explore' : 'Explore',
+      'explain' => isIndonesian ? 'Explain' : 'Explain',
+      'elaborate' => isIndonesian ? 'Elaborate' : 'Elaborate',
+      'evaluate' => isIndonesian ? 'Evaluate' : 'Evaluate',
+      _ => isIndonesian ? 'Engage' : 'Engage',
+    };
+  }
+
   String get startPosttestButtonLabel =>
       isIndonesian ? 'Mulai Posttest' : 'Start Posttest';
+  String get posttestReadyBody => isIndonesian
+      ? 'Mulai posttest sekarang? Ini akan menutup modul workspace dan menyiapkan sesi posttest.'
+      : 'Start posttest now? This will complete the workspace module and prepare the posttest session.';
+  String get cancelLabel => isIndonesian ? 'Batal' : 'Cancel';
   String get posttestWarningTitle =>
       isIndonesian ? 'Workspace belum selesai' : 'Workspace not finished yet';
   String get posttestWarningBody => isIndonesian
@@ -2318,6 +2488,7 @@ class _WorkspaceChatPanel extends StatelessWidget {
     required this.onAnswerQuiz,
     required this.onStartChat,
     required this.onOpenCanvas,
+    required this.showCheckUnderstanding,
     this.weeklyReport,
     this.onDismissReport,
   });
@@ -2342,6 +2513,7 @@ class _WorkspaceChatPanel extends StatelessWidget {
   final ValueChanged<String> onAnswerQuiz;
   final VoidCallback onStartChat;
   final VoidCallback onOpenCanvas;
+  final bool showCheckUnderstanding;
   final WeeklyLearningReport? weeklyReport;
   final VoidCallback? onDismissReport;
 
@@ -2415,7 +2587,8 @@ class _WorkspaceChatPanel extends StatelessWidget {
           ],
           if (!isLoadingWorkspace &&
               workspaceError == null &&
-              chatEntries.isNotEmpty) ...[
+              chatEntries.isNotEmpty &&
+              showCheckUnderstanding) ...[
             const SizedBox(height: 14),
             _WorkspaceQuizCard(
               quizState: quizState,
@@ -2599,7 +2772,7 @@ class _WorkspaceBubble extends StatelessWidget {
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            child: Text(
+            child: RichMathText(
               text,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: WicaraColors.text,
@@ -3909,28 +4082,134 @@ class _CanvasSnapshotBubble extends StatelessWidget {
   }
 }
 
+class _PhaseStepperBar extends StatelessWidget {
+  const _PhaseStepperBar({
+    required this.currentPhase,
+    required this.phaseTransitionPending,
+    required this.material,
+  });
+
+  final String currentPhase;
+  final bool phaseTransitionPending;
+  final _LocalizedWorkspaceMaterial material;
+
+  static const _phaseOrder = [
+    'engage',
+    'explore',
+    'explain',
+    'elaborate',
+    'evaluate',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = currentPhase.trim().toLowerCase();
+    final rawIndex = _phaseOrder.indexOf(normalized);
+    final currentIndex = rawIndex < 0 ? 0 : rawIndex;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: List.generate(_phaseOrder.length, (index) {
+            final phase = _phaseOrder[index];
+            final done = index < currentIndex;
+            final active = index == currentIndex;
+            final fillColor = done
+                ? WicaraColors.accentMint.withValues(alpha: 0.24)
+                : active
+                ? WicaraColors.primary.withValues(alpha: 0.2)
+                : WicaraColors.fieldFill;
+            final borderColor = done
+                ? WicaraColors.accentMint
+                : active
+                ? WicaraColors.primary
+                : WicaraColors.line;
+            return Expanded(
+              child: Container(
+                margin: EdgeInsets.only(
+                  right: index == _phaseOrder.length - 1 ? 0 : 6,
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: fillColor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: borderColor,
+                    width: active ? 1.3 : 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (done) ...[
+                      const Icon(
+                        Icons.check_rounded,
+                        size: 14,
+                        color: WicaraColors.accentMint,
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    Flexible(
+                      child: Text(
+                        material.phaseLabel(phase),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: WicaraColors.ink,
+                          fontWeight: active
+                              ? FontWeight.w800
+                              : FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ),
+        if (phaseTransitionPending) ...[
+          const SizedBox(height: 7),
+          Text(
+            material.phaseTransitionHint,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: WicaraColors.muted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 class _WorkspaceFooter extends StatelessWidget {
   const _WorkspaceFooter({
     required this.controller,
     required this.onSend,
+    required this.onAdvancePhase,
+    required this.onForceAdvancePhase,
     required this.onGenerateVideo,
+    required this.canAdvancePhase,
+    required this.canForceAdvancePhase,
+    required this.isPhaseSubmitting,
     required this.isVideoGenerating,
     required this.canGenerateVideo,
-    required this.contentMode,
-    required this.videoStatusMessage,
-    required this.videoErrorMessage,
     required this.copy,
     required this.material,
   });
 
   final TextEditingController controller;
   final VoidCallback onSend;
+  final VoidCallback onAdvancePhase;
+  final VoidCallback onForceAdvancePhase;
   final VoidCallback onGenerateVideo;
+  final bool canAdvancePhase;
+  final bool canForceAdvancePhase;
+  final bool isPhaseSubmitting;
   final bool isVideoGenerating;
   final bool canGenerateVideo;
-  final _WorkspaceContentMode contentMode;
-  final String? videoStatusMessage;
-  final String? videoErrorMessage;
   final OnboardingCopy copy;
   final _LocalizedWorkspaceMaterial material;
 
@@ -3954,6 +4233,51 @@ class _WorkspaceFooter extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: canAdvancePhase && !isPhaseSubmitting
+                        ? onAdvancePhase
+                        : null,
+                    icon: Icon(
+                      isPhaseSubmitting
+                          ? Icons.hourglass_bottom_rounded
+                          : Icons.skip_next_rounded,
+                    ),
+                    label: Text(
+                      isPhaseSubmitting
+                          ? material.advancingPhaseLabel
+                          : material.advancePhaseLabel,
+                    ),
+                  ),
+                ),
+                if (canForceAdvancePhase) ...[
+                  const SizedBox(width: 8),
+                  PopupMenuButton<String>(
+                    tooltip: material.forceAdvancePhaseLabel,
+                    onSelected: (value) {
+                      if (value == 'force') {
+                        onForceAdvancePhase();
+                      }
+                    },
+                    itemBuilder: (context) {
+                      return [
+                        PopupMenuItem<String>(
+                          value: 'force',
+                          child: Text(material.forceAdvancePhaseLabel),
+                        ),
+                      ];
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Icon(Icons.more_vert_rounded),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 8),
             FilledButton.icon(
               onPressed: !isVideoGenerating && canGenerateVideo
                   ? onGenerateVideo
@@ -3969,29 +4293,6 @@ class _WorkspaceFooter extends StatelessWidget {
                     : material.generateVideoFromChatLabel,
               ),
             ),
-            if (contentMode == _WorkspaceContentMode.videoProcessing) ...[
-              const SizedBox(height: 8),
-              _WorkspaceSyncNotice(
-                icon: Icons.movie_creation_outlined,
-                text:
-                    videoStatusMessage ??
-                    material.generatingVideoContextMessage,
-              ),
-            ] else if (contentMode == _WorkspaceContentMode.videoFailed &&
-                (videoErrorMessage?.isNotEmpty ?? false)) ...[
-              const SizedBox(height: 8),
-              _WorkspaceSyncNotice(
-                icon: Icons.error_outline_rounded,
-                text: videoErrorMessage!,
-                isError: true,
-              ),
-            ] else if (contentMode == _WorkspaceContentMode.videoReady) ...[
-              const SizedBox(height: 8),
-              _WorkspaceSyncNotice(
-                icon: Icons.check_circle_rounded,
-                text: material.videoReadyMessage,
-              ),
-            ],
             const SizedBox(height: 10),
             _WorkspaceComposerInput(
               controller: controller,
