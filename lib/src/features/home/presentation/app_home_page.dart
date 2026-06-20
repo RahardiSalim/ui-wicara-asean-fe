@@ -7,11 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../app/app_routes.dart';
+import '../../../core/accessibility/speech_accessibility_scope.dart';
 import '../../../core/theme/wicara_colors.dart';
 import '../../../core/utils/learning_level_resolver.dart';
 import '../../../core/widgets/gradient_button.dart';
 import '../../../core/widgets/hardcoded_video_preview.dart';
 import '../../../core/widgets/language_chip.dart';
+import '../../../core/widgets/speech_controls.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../curriculum/domain/curriculum_models.dart';
 import '../../curriculum/domain/curriculum_repository.dart';
@@ -2456,6 +2458,9 @@ class _BackendGalleryArtifactCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(15),
         onTap: () {
+          unawaited(
+            SpeechAccessibilityScope.maybeOf(context)?.stop(),
+          );
           showDialog<void>(
             context: context,
             builder: (context) {
@@ -3513,6 +3518,12 @@ class _DailyEvaluationQuestionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final copy = _HomeCopyScope.of(context);
+    final locale = copy.isIndonesian ? 'id-ID' : 'en-US';
+    final questionSpeech = <String>[
+      question.prompt,
+      question.helper,
+      ...question.options.map((option) => option.text),
+    ].join('. ');
     final progress = totalQuestions == 0
         ? 0.0
         : (questionIndex + 1) / totalQuestions;
@@ -3598,6 +3609,14 @@ class _DailyEvaluationQuestionPage extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 26),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: ReadAloudButton(
+                      textToRead: questionSpeech,
+                      locale: locale,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   RichMathText(
                     question.prompt,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -4166,6 +4185,14 @@ class _EvaluationCompletePage extends StatelessWidget {
     final scoreFraction =
         ((result?.scorePercent ?? 0).clamp(0, 100).toDouble()) / 100;
     final copy = _HomeCopyScope.of(context);
+    final locale = copy.isIndonesian ? 'id-ID' : 'en-US';
+    final resultSpeech = <String>[
+      copy.evaluationCompleteLabel,
+      copy.evaluationCompleteSubtitle,
+      '${result?.scorePercent ?? 0} percent',
+      '${result?.reviewedCount ?? 0} ${copy.reviewedLabel}',
+      '${result?.correctCount ?? 0} ${copy.correctLabel}',
+    ].join('. ');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 18, 28, 30),
@@ -4195,6 +4222,14 @@ class _EvaluationCompletePage extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: WicaraColors.muted,
                 fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.center,
+              child: ReadAloudButton(
+                textToRead: resultSpeech,
+                locale: locale,
               ),
             ),
             const SizedBox(height: 26),
@@ -4280,6 +4315,20 @@ class _PosttestAnalysisPage extends StatelessWidget {
       0,
       (sum, node) => sum + node.totalQuestions,
     );
+    final locale = copy.isIndonesian ? 'id-ID' : 'en-US';
+    final resultSpeech = <String>[
+      passed
+          ? (copy.isIndonesian
+                ? 'Mastery terkonfirmasi'
+                : 'Mastery confirmed')
+          : (copy.isIndonesian
+                ? 'Perlu review dari hasil posttest'
+                : 'Review needed from posttest results'),
+      '${resolved?.scorePercent ?? 0} percent',
+      '$correctCount of $totalQuestions correct',
+      for (final node in nodes)
+        '${node.conceptTitle}. ${node.correctCount} of ${node.totalQuestions}',
+    ].join('. ');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 18, 28, 30),
@@ -4319,6 +4368,14 @@ class _PosttestAnalysisPage extends StatelessWidget {
                 color: WicaraColors.muted,
                 fontWeight: FontWeight.w600,
                 height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.center,
+              child: ReadAloudButton(
+                textToRead: resultSpeech,
+                locale: locale,
               ),
             ),
             const SizedBox(height: 26),
@@ -5049,6 +5106,7 @@ class _SpacedRepetitionImpactPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final copy = _HomeCopyScope.of(context);
     return _Panel(
       padding: const EdgeInsets.fromLTRB(14, 15, 14, 14),
       child: Column(
@@ -8915,6 +8973,13 @@ class _WeeklyNarrativePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final copy = _HomeCopyScope.of(context);
+    final locale = copy.isIndonesian ? 'id-ID' : 'en-US';
+    final speechText = <String>[
+      narrative.improved,
+      narrative.stagnant,
+      narrative.focus,
+    ].join('. ');
     return _Panel(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
       child: Column(
@@ -8927,6 +8992,8 @@ class _WeeklyNarrativePanel extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          const SizedBox(height: 8),
+          ReadAloudButton(textToRead: speechText, locale: locale),
           const SizedBox(height: 12),
           _NarrativeRow(label: 'Improved', text: narrative.improved),
           const SizedBox(height: 8),
@@ -11441,6 +11508,15 @@ class _KnowledgeConceptDetailPanelState
     final crossSubject = widget.detail.crossSubjectConnections.isEmpty
         ? null
         : widget.detail.crossSubjectConnections.first;
+    final locale = copy.isIndonesian ? 'id-ID' : 'en-US';
+    final detailSpeech = <String>[
+      node.label,
+      _nodeDescription(node, copy),
+      if (prerequisites.isNotEmpty)
+        '${copy.prerequisitesLabel}. ${prerequisites.map((item) => item.label).join(', ')}',
+      if (related.isNotEmpty)
+        '${copy.relatedConceptsLabel}. ${related.map((item) => item.label).join(', ')}',
+    ].join('. ');
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 180),
@@ -11498,6 +11574,14 @@ class _KnowledgeConceptDetailPanelState
                 ),
               ),
             ],
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ReadAloudButton(
+                textToRead: detailSpeech,
+                locale: locale,
+              ),
+            ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/wicara_colors.dart';
+import '../../../../core/accessibility/speech_text_formatter.dart';
 import '../../domain/pretest_models.dart';
 import 'rich_math_text.dart';
 
@@ -20,12 +21,19 @@ class AssessmentOptionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final borderColor = isSelected ? WicaraColors.secondary : WicaraColors.line;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: AnimatedContainer(
+    return Semantics(
+      label:
+          '${option.label}. ${SpeechTextFormatter.format(option.text)}',
+      button: true,
+      checked: isSelected,
+      inMutuallyExclusiveGroup: true,
+      child: ExcludeSemantics(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: AnimatedContainer(
           duration: const Duration(milliseconds: 170),
           constraints: const BoxConstraints(minHeight: 68),
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
@@ -70,6 +78,8 @@ class AssessmentOptionTile extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+            ),
           ),
         ),
       ),

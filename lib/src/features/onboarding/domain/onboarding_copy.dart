@@ -388,6 +388,41 @@ class OnboardingCopy {
   String get searchLabel => isIndonesian ? 'Cari' : 'Search';
   String get applyLabel => isIndonesian ? 'Terapkan' : 'Apply';
   String get cancelLabel => isIndonesian ? 'Batal' : 'Cancel';
+  String get speechReadAloud => isIndonesian ? 'Bacakan' : 'Read aloud';
+  String get speechReadAloudHint => isIndonesian
+      ? 'Bacakan konten ini dengan suara'
+      : 'Read this content using speech';
+  String get speechStop =>
+      isIndonesian ? 'Berhenti membaca' : 'Stop speaking';
+  String get speechStopHint => isIndonesian
+      ? 'Hentikan audio atau input suara yang aktif'
+      : 'Stop active speech or voice input';
+  String get speechPause => isIndonesian ? 'Jeda' : 'Pause';
+  String get speechResume => isIndonesian ? 'Lanjutkan' : 'Resume';
+  String get speechSpeed => isIndonesian ? 'Kecepatan suara' : 'Speech speed';
+  String speechSpeedValue(double value) => isIndonesian
+      ? '${value.toStringAsFixed(2)} kali'
+      : '${value.toStringAsFixed(2)} times';
+  String get speechVoiceInput => isIndonesian ? 'Input suara' : 'Voice input';
+  String get speechVoiceInputHint => isIndonesian
+      ? 'Mulai atau hentikan perekaman suara'
+      : 'Start or stop voice recording';
+  String get speechListening =>
+      isIndonesian ? 'Mendengarkan...' : 'Listening...';
+  String get speechProcessing =>
+      isIndonesian ? 'Memproses...' : 'Processing...';
+  String get speechSpeaking => isIndonesian ? 'Sedang membaca' : 'Speaking';
+  String get speechPaused => isIndonesian ? 'Bacaan dijeda' : 'Speech paused';
+  String get speechError => isIndonesian ? 'Terjadi kesalahan suara' : 'Speech error';
+  String get speechMicPermissionDenied => isIndonesian
+      ? 'Izin mikrofon ditolak'
+      : 'Microphone permission denied';
+  String get speechMicPermissionInstructions => isIndonesian
+      ? 'Aktifkan izin mikrofon melalui pengaturan perangkat untuk memakai input suara.'
+      : 'Enable microphone permission in device settings to use voice input.';
+  String get speechServiceUnavailable => isIndonesian
+      ? 'Layanan suara tidak tersedia'
+      : 'Speech service unavailable';
 
   String gradeValue(String level) =>
       isIndonesian ? 'Kelas $level' : 'Grade $level';

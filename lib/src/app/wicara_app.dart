@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/accessibility/speech_accessibility_scope.dart';
+import '../core/accessibility/speech_controller.dart';
 import '../core/theme/wicara_theme.dart';
 import '../features/auth/application/auth_controller.dart';
 import '../features/auth/presentation/sign_in_page.dart';
@@ -55,7 +57,7 @@ class WicaraApp extends StatefulWidget {
   State<WicaraApp> createState() => _WicaraAppState();
 }
 
-class _WicaraAppState extends State<WicaraApp> {
+class _WicaraAppState extends State<WicaraApp> with WidgetsBindingObserver {
   static const _preloadedAssets = <String>[
     'lib/src/assets/landingPage.png',
     'lib/src/assets/iconText.png',
@@ -70,6 +72,8 @@ class _WicaraAppState extends State<WicaraApp> {
 
   bool _didSchedulePreload = false;
   late final NavigatorObserver _authRouteObserver;
+  late final NavigatorObserver _speechRouteObserver;
+  SpeechController? _speechController;
 
   // Cached once after auth finishes initializing so that MaterialApp.initialRoute
   // is never set from a partially-restored session.
@@ -78,7 +82,11 @@ class _WicaraAppState extends State<WicaraApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _authRouteObserver = _AuthRouteObserver(widget.authController);
+    _speechRouteObserver = _SpeechRouteObserver(
+      () => _speechController?.handleRouteChange(),
+    );
     widget.authController.addListener(_onAuthChanged);
     // If already initialized when the widget is created (uncommon but possible)
     if (widget.authController.isInitialized) {
@@ -88,8 +96,14 @@ class _WicaraAppState extends State<WicaraApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.authController.removeListener(_onAuthChanged);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _speechController?.handleAppLifecycle(state);
   }
 
   void _onAuthChanged() {
@@ -109,6 +123,7 @@ class _WicaraAppState extends State<WicaraApp> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _speechController = SpeechAccessibilityScope.maybeOf(context);
     if (_didSchedulePreload) {
       return;
     }
@@ -145,7 +160,7 @@ class _WicaraAppState extends State<WicaraApp> {
           title: 'Wicara',
           debugShowCheckedModeBanner: false,
           theme: WicaraTheme.light(),
-          navigatorObservers: [_authRouteObserver],
+          navigatorObservers: [_authRouteObserver, _speechRouteObserver],
           initialRoute: initialRoute,
           onGenerateRoute: _onGenerateRoute,
         );
@@ -341,6 +356,30 @@ class _AuthRouteObserver extends NavigatorObserver {
   void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
     super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
     _authController.markRouteVisited(newRoute?.settings.name);
+  }
+}
+
+class _SpeechRouteObserver extends NavigatorObserver {
+  _SpeechRouteObserver(this.onRouteChanged);
+
+  final VoidCallback onRouteChanged;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPush(route, previousRoute);
+    onRouteChanged();
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    super.didPop(route, previousRoute);
+    onRouteChanged();
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+    onRouteChanged();
   }
 }
 

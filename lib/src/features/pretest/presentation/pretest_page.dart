@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_routes.dart';
 import '../../../core/theme/wicara_colors.dart';
 import '../../../core/widgets/gradient_button.dart';
+import '../../../core/widgets/speech_controls.dart';
 import '../../onboarding/application/onboarding_controller.dart';
 import '../../onboarding/domain/onboarding_copy.dart';
 import '../../review/domain/review_models.dart';
@@ -480,6 +481,14 @@ class _QuestionStage extends StatelessWidget {
   Widget build(BuildContext context) {
     final compact = constraints.maxHeight < 700;
     final horizontalPadding = constraints.maxWidth < 360 ? 18.0 : 28.0;
+    final locale = copy.isIndonesian ? 'id-ID' : 'en-US';
+    final speechText = [
+      question.topic,
+      question.prompt,
+      question.helper,
+      for (final option in question.options)
+        '${option.label}. ${option.text}',
+    ].where((part) => part.trim().isNotEmpty).join('. ');
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
         horizontalPadding,
@@ -557,6 +566,13 @@ class _QuestionStage extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ReadAloudButton(
+                      textToRead: speechText,
+                      locale: locale,
                     ),
                   ),
                   SizedBox(height: compact ? 18 : 26),
@@ -806,6 +822,7 @@ class _ReasoningFooter extends StatelessWidget {
               controller: controller,
               isSubmitting: isSubmitting,
               onSubmit: onSubmit,
+              locale: copy.isIndonesian ? 'id-ID' : 'en-US',
             ),
             const SizedBox(height: 11),
             Row(
@@ -868,6 +885,19 @@ class _ResultStage extends StatelessWidget {
     final localizedPathMeta = copy.isIndonesian
         ? state.pathMeta.replaceAll('skills', 'skill')
         : state.pathMeta;
+    final locale = copy.isIndonesian ? 'id-ID' : 'en-US';
+    final resultSpeechText = [
+      copy.yourKnowledgeStateLabel,
+      if (state.masteryScore != null)
+        '${copy.scoreLabel} ${((state.masteryScore ?? 0) * 100).round()} percent',
+      state.message,
+      ...state.strengths,
+      ...state.gaps,
+      ...state.evidenceNotes,
+      ...state.nodeReports.map((node) => '${node.title}: ${node.status}'),
+      ...state.recommendedFocus,
+      state.pathDescription,
+    ].where((part) => part.trim().isNotEmpty).join('. ');
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(28, 14, 28, 22),
@@ -891,6 +921,13 @@ class _ResultStage extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: WicaraColors.muted,
                 fontWeight: FontWeight.w600,
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ReadAloudButton(
+                textToRead: resultSpeechText,
+                locale: locale,
               ),
             ),
             if (state.masteryScore != null) ...[
@@ -1856,18 +1893,23 @@ class _ReasoningInput extends StatelessWidget {
     required this.controller,
     required this.isSubmitting,
     required this.onSubmit,
+    required this.locale,
   });
 
   final TextEditingController controller;
   final bool isSubmitting;
   final VoidCallback onSubmit;
+  final String locale;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: TextField(
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
             controller: controller,
             minLines: 1,
             maxLines: 2,
@@ -1898,10 +1940,10 @@ class _ReasoningInput extends StatelessWidget {
               color: WicaraColors.text,
               fontWeight: FontWeight.w700,
             ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Container(
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
           width: 53,
           height: 53,
           decoration: BoxDecoration(
@@ -1915,7 +1957,7 @@ class _ReasoningInput extends StatelessWidget {
               ),
             ],
           ),
-          child: IconButton(
+              child: IconButton(
             onPressed: isSubmitting ? null : onSubmit,
             icon: isSubmitting
                 ? const SizedBox(
@@ -1928,9 +1970,33 @@ class _ReasoningInput extends StatelessWidget {
                   )
                 : const Icon(Icons.arrow_upward_rounded),
             color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: MicrophoneToggle(
+            locale: locale,
+            onTranscript: _insertTranscript,
           ),
         ),
       ],
+    );
+  }
+
+  void _insertTranscript(String transcript) {
+    final selection = controller.selection;
+    final start = selection.isValid ? selection.start : controller.text.length;
+    final end = selection.isValid ? selection.end : controller.text.length;
+    final needsSpace = start > 0 && !controller.text[start - 1].endsWith(' ');
+    final insertion = '${needsSpace ? ' ' : ''}$transcript';
+    final updated = controller.text.replaceRange(start, end, insertion);
+    final caret = start + insertion.length;
+    controller.value = TextEditingValue(
+      text: updated,
+      selection: TextSelection.collapsed(offset: caret),
     );
   }
 }

@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wicara_mobile/src/app/wicara_app.dart';
+import 'package:wicara_mobile/src/core/accessibility/speech_accessibility_scope.dart';
+import 'package:wicara_mobile/src/core/accessibility/speech_controller.dart';
 import 'package:wicara_mobile/src/core/network/api_client.dart';
 import 'package:wicara_mobile/src/core/theme/wicara_theme.dart';
 import 'package:wicara_mobile/src/features/auth/application/auth_controller.dart';
@@ -22,6 +26,8 @@ import 'package:wicara_mobile/src/features/pretest/presentation/pretest_page.dar
 import 'package:wicara_mobile/src/features/pretest/presentation/widgets/fishbone_canvas.dart';
 import 'package:wicara_mobile/src/features/workspace/domain/workspace_models.dart';
 import 'package:wicara_mobile/src/features/workspace/domain/workspace_repository.dart';
+
+import 'support/speech_fakes.dart';
 
 const _curriculumRepository = _FailingCurriculumRepository();
 const _learningGoalRepository = _FakeLearningGoalRepository();
@@ -230,6 +236,52 @@ void main() {
     expect(preferences.getString('auth.lastProtectedRoute'), '/home');
   });
 
+  testWidgets('workspace voice input is present and video stops speech', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 932);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final player = FakeAudioPlayer()..autoComplete = false;
+    final speechController = SpeechController(
+      apiClient: FakeSpeechApiClient(),
+      player: player,
+      recorder: FakeAudioRecorder(),
+    );
+    await speechController.init();
+    addTearDown(speechController.dispose);
+
+    await tester.pumpWidget(
+      await _buildSignedInTestApp(
+        homeRepository: const _WorkspaceReadyHomeRepository(),
+        workspaceRepository: const _FakeWorkspaceRepository(),
+        educationLevel: 'elementary',
+        gradeLevel: '4',
+        speechController: speechController,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Continue session'));
+    await tester.tap(find.text('Continue session'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Voice input'), findsOneWidget);
+    unawaited(speechController.speak('Speech that must stop for video.'));
+    await tester.pump();
+    await tester.pump();
+    expect(speechController.mode, SpeechMode.speaking);
+
+    await tester.ensureVisible(find.text('Generate video from chat'));
+    await tester.tap(find.text('Generate video from chat'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Play generated video'));
+    await tester.tap(find.text('Play generated video'));
+    await tester.pump();
+
+    expect(speechController.mode, SpeechMode.idle);
+  });
+
   testWidgets('workspace start posttest warns before module completion', (
     tester,
   ) async {
@@ -333,6 +385,7 @@ void main() {
 
     expect(find.text('Perkalian'), findsWidgets);
     expect(find.text('Submit answer'), findsOneWidget);
+    expect(find.text('Read aloud'), findsOneWidget);
 
     await tester.ensureVisible(find.text('12'));
     await tester.tap(find.text('12'));
@@ -413,11 +466,12 @@ Future<WicaraApp> _buildTestApp() async {
   );
 }
 
-Future<WicaraApp> _buildSignedInTestApp({
+Future<Widget> _buildSignedInTestApp({
   HomeRepository homeRepository = _homeRepository,
   WorkspaceRepository? workspaceRepository,
   String educationLevel = 'senior_high',
   String gradeLevel = '11',
+  SpeechController? speechController,
 }) async {
   final authController = AuthController(
     authRepository: const MockAuthRepository(delay: Duration.zero),
@@ -437,7 +491,7 @@ Future<WicaraApp> _buildSignedInTestApp({
     gradeLevel: gradeLevel,
   );
 
-  return WicaraApp(
+  final app = WicaraApp(
     authController: authController,
     onboardingController: onboardingController,
     curriculumRepository: _curriculumRepository,
@@ -447,6 +501,8 @@ Future<WicaraApp> _buildSignedInTestApp({
     pretestRepository: const MockPretestRepository(delay: Duration.zero),
     workspaceRepository: workspaceRepository,
   );
+  if (speechController == null) return app;
+  return SpeechAccessibilityScope(notifier: speechController, child: app);
 }
 
 Future<OnboardingController> _buildOnboardingController({
@@ -1100,6 +1156,7 @@ class _FakeWorkspaceRepository implements WorkspaceRepository {
       progress: 100,
       message: 'Ready',
       artifactId: 'artifact-widget-test',
+      videoUrl: 'https://example.test/generated-video.mp4',
     );
   }
 

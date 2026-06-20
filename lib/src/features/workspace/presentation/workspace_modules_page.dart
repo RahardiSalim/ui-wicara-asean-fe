@@ -4,8 +4,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../../core/accessibility/speech_accessibility_scope.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/wicara_colors.dart';
+import '../../../core/widgets/speech_controls.dart';
 import '../../home/domain/home_repository.dart';
 import '../../home/domain/home_snapshot.dart';
 import '../../onboarding/application/onboarding_controller.dart';
@@ -2620,6 +2622,9 @@ class _WorkspaceChatPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          SpeechStatusBanner(
+            locale: material.isIndonesian ? 'id-ID' : 'en-US',
+          ),
           // ── Weekly report card (dismissible, shown at top of chat) ────────
           if (weeklyReport != null) ...[
             _WeeklyReportChatCard(
@@ -2635,11 +2640,13 @@ class _WorkspaceChatPanel extends StatelessWidget {
                 _WorkspaceBubble(
                   text: material.workspaceIntroLine1,
                   isUser: false,
+                  locale: material.isIndonesian ? 'id-ID' : 'en-US',
                 ),
                 const SizedBox(height: 9),
                 _WorkspaceBubble(
                   text: material.workspaceIntroLine2,
                   isUser: false,
+                  locale: material.isIndonesian ? 'id-ID' : 'en-US',
                 ),
               ],
             ),
@@ -2713,10 +2720,18 @@ class _WorkspaceChatPanel extends StatelessWidget {
                 ),
               )
             else if (entry.isUser)
-              _WorkspaceBubble(text: entry.text!, isUser: true)
+              _WorkspaceBubble(
+                text: entry.text!,
+                isUser: true,
+                locale: material.isIndonesian ? 'id-ID' : 'en-US',
+              )
             else
               _AssistantMessageFrame(
-                child: _WorkspaceBubble(text: entry.text!, isUser: false),
+                child: _WorkspaceBubble(
+                  text: entry.text!,
+                  isUser: false,
+                  locale: material.isIndonesian ? 'id-ID' : 'en-US',
+                ),
               ),
           ],
           if (contentMode == _WorkspaceContentMode.videoProcessing) ...[
@@ -2840,10 +2855,15 @@ class _WorkspaceSyncNotice extends StatelessWidget {
 }
 
 class _WorkspaceBubble extends StatelessWidget {
-  const _WorkspaceBubble({required this.text, required this.isUser});
+  const _WorkspaceBubble({
+    required this.text,
+    required this.isUser,
+    required this.locale,
+  });
 
   final String text;
   final bool isUser;
+  final String locale;
 
   @override
   Widget build(BuildContext context) {
@@ -2868,13 +2888,22 @@ class _WorkspaceBubble extends StatelessWidget {
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-            child: RichMathText(
-              text,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: WicaraColors.text,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                RichMathText(
+                  text,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: WicaraColors.text,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+                if (!isUser) ...[
+                  const SizedBox(height: 8),
+                  ReadAloudButton(textToRead: text, locale: locale),
+                ],
+              ],
             ),
           ),
         ),
@@ -3303,6 +3332,11 @@ class _GeneratedWorkspaceVideoCard extends StatelessWidget {
                     child: FilledButton.icon(
                       onPressed: canPlay
                           ? () {
+                              unawaited(
+                                SpeechAccessibilityScope.maybeOf(
+                                  context,
+                                )?.stop(),
+                              );
                               showDialog<void>(
                                 context: context,
                                 builder: (context) {
@@ -3901,6 +3935,12 @@ class _WorkspaceQuizCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final locale = material.isIndonesian ? 'id-ID' : 'en-US';
+    final quizSpeech = <String>[
+      material.workspaceExplanation,
+      material.workspaceQuizQuestion,
+      ...material.workspaceQuizOptions,
+    ].join('. ');
     return _WorkspaceRichBubble(
       icon: Icons.quiz_outlined,
       title: material.checkUnderstandingTitle,
@@ -3910,6 +3950,15 @@ class _WorkspaceQuizCard extends StatelessWidget {
           _WorkspaceMaterialRecap(
             title: material.materialRecapLabel,
             explanationText: material.workspaceExplanation,
+            locale: locale,
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ReadAloudButton(
+              textToRead: quizSpeech,
+              locale: locale,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
@@ -3994,10 +4043,12 @@ class _WorkspaceMaterialRecap extends StatelessWidget {
   const _WorkspaceMaterialRecap({
     required this.title,
     required this.explanationText,
+    required this.locale,
   });
 
   final String title;
   final String explanationText;
+  final String locale;
 
   @override
   Widget build(BuildContext context) {
@@ -4027,6 +4078,8 @@ class _WorkspaceMaterialRecap extends StatelessWidget {
               height: 1.38,
             ),
           ),
+          const SizedBox(height: 8),
+          ReadAloudButton(textToRead: explanationText, locale: locale),
         ],
       ),
     );
@@ -4496,67 +4549,96 @@ class _WorkspaceComposerInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: TextField(
-            controller: controller,
-            keyboardType: TextInputType.multiline,
-            minLines: 1,
-            maxLines: 4,
-            textInputAction: TextInputAction.send,
-            onSubmitted: (_) => onSend(),
-            decoration: InputDecoration(
-              hintText: copy.askOrReflectHereHint,
-              filled: true,
-              fillColor: WicaraColors.fieldFill,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 15,
-                vertical: 12,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(13),
-                borderSide: const BorderSide(
-                  color: WicaraColors.secondaryLight,
-                  width: 1.4,
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                keyboardType: TextInputType.multiline,
+                minLines: 1,
+                maxLines: 4,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => onSend(),
+                decoration: InputDecoration(
+                  hintText: copy.askOrReflectHereHint,
+                  filled: true,
+                  fillColor: WicaraColors.fieldFill,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 15,
+                    vertical: 12,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(13),
+                    borderSide: const BorderSide(
+                      color: WicaraColors.secondaryLight,
+                      width: 1.4,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(13),
+                    borderSide: const BorderSide(
+                      color: WicaraColors.secondary,
+                      width: 1.7,
+                    ),
+                  ),
                 ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(13),
-                borderSide: const BorderSide(
-                  color: WicaraColors.secondary,
-                  width: 1.7,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: WicaraColors.text,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: WicaraColors.text,
-              fontWeight: FontWeight.w700,
+            const SizedBox(width: 12),
+            Container(
+              width: 49,
+              height: 49,
+              decoration: BoxDecoration(
+                color: WicaraColors.secondary,
+                borderRadius: BorderRadius.circular(27),
+                boxShadow: [
+                  BoxShadow(
+                    color: WicaraColors.secondary.withValues(alpha: 0.24),
+                    blurRadius: 16,
+                    offset: const Offset(0, 9),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                onPressed: onSend,
+                icon: const Icon(Icons.arrow_upward_rounded),
+                color: Colors.white,
+              ),
             ),
-          ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Container(
-          width: 49,
-          height: 49,
-          decoration: BoxDecoration(
-            color: WicaraColors.secondary,
-            borderRadius: BorderRadius.circular(27),
-            boxShadow: [
-              BoxShadow(
-                color: WicaraColors.secondary.withValues(alpha: 0.24),
-                blurRadius: 16,
-                offset: const Offset(0, 9),
-              ),
-            ],
-          ),
-          child: IconButton(
-            onPressed: onSend,
-            icon: const Icon(Icons.arrow_upward_rounded),
-            color: Colors.white,
+        const SizedBox(height: 6),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: MicrophoneToggle(
+            locale: copy.isIndonesian ? 'id-ID' : 'en-US',
+            onTranscript: _insertTranscript,
           ),
         ),
       ],
+    );
+  }
+
+  void _insertTranscript(String transcript) {
+    final selection = controller.selection;
+    final start = selection.isValid ? selection.start : controller.text.length;
+    final end = selection.isValid ? selection.end : start;
+    final before = controller.text.substring(0, start);
+    final after = controller.text.substring(end);
+    final separator = before.isNotEmpty && !before.endsWith(' ') ? ' ' : '';
+    final inserted = '$separator${transcript.trim()}';
+    controller.value = TextEditingValue(
+      text: '$before$inserted$after',
+      selection: TextSelection.collapsed(
+        offset: before.length + inserted.length,
+      ),
     );
   }
 }

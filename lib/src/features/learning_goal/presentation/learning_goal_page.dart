@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_routes.dart';
 import '../../../core/theme/wicara_colors.dart';
 import '../../../core/widgets/gradient_button.dart';
+import '../../../core/widgets/speech_controls.dart';
 import '../../onboarding/application/onboarding_controller.dart';
 import '../../onboarding/domain/onboarding_copy.dart';
 import '../domain/learning_goal_repository.dart';
@@ -350,6 +351,14 @@ class _LearningGoalPageState extends State<LearningGoalPage> {
                     height: 1.35,
                   ),
                 ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: ReadAloudButton(
+                    textToRead: '${concept.title}. $description',
+                    locale: isId ? 'id-ID' : 'en-US',
+                  ),
+                ),
               ],
             ),
             actions: [
@@ -437,6 +446,14 @@ class _LearningGoalPageState extends State<LearningGoalPage> {
                     fontWeight: FontWeight.w600,
                     height: 1.35,
                   ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: ReadAloudButton(
+                  textToRead: '${concept.title}. $description',
+                  locale: isId ? 'id-ID' : 'en-US',
                 ),
               ),
               const SizedBox(height: 18),
@@ -922,20 +939,53 @@ class _LearningGoalFieldState extends State<_LearningGoalField> {
         borderRadius: BorderRadius.circular(13),
         border: Border.all(color: WicaraColors.line, width: 1.3),
       ),
-      child: TextField(
-        controller: widget.controller,
-        readOnly: widget.isLocked,
-        minLines: 1,
-        maxLines: 4,
-        textAlign: TextAlign.center,
-        textInputAction: TextInputAction.done,
-        decoration: InputDecoration(hintText: widget.copy.typeATopicHint),
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: WicaraColors.text,
-          fontSize: _topicFontSize(widget.controller.text),
-          fontWeight: FontWeight.w700,
-          height: 1.25,
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: widget.controller,
+            readOnly: widget.isLocked,
+            minLines: 1,
+            maxLines: 4,
+            textAlign: TextAlign.center,
+            textInputAction: TextInputAction.done,
+            decoration: InputDecoration(hintText: widget.copy.typeATopicHint),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: WicaraColors.text,
+              fontSize: _topicFontSize(widget.controller.text),
+              fontWeight: FontWeight.w700,
+              height: 1.25,
+            ),
+          ),
+          if (!widget.isLocked) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: MicrophoneToggle(
+                locale: widget.copy.isIndonesian ? 'id-ID' : 'en-US',
+                onTranscript: _insertTranscript,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _insertTranscript(String transcript) {
+    final selection = widget.controller.selection;
+    final start = selection.isValid
+        ? selection.start
+        : widget.controller.text.length;
+    final end = selection.isValid ? selection.end : start;
+    final before = widget.controller.text.substring(0, start);
+    final after = widget.controller.text.substring(end);
+    final separator = before.isNotEmpty && !before.endsWith(' ') ? ' ' : '';
+    final inserted = '$separator${transcript.trim()}';
+    widget.controller.value = TextEditingValue(
+      text: '$before$inserted$after',
+      selection: TextSelection.collapsed(
+        offset: before.length + inserted.length,
       ),
     );
   }
@@ -1168,6 +1218,8 @@ class _ResolutionNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final concept = resolution.suggestedConcept;
+    final locale = isIndonesian ? 'id-ID' : 'en-US';
+    final speechText = _speechText(concept);
     if (concept == null) {
       return Container(
         key: ValueKey(resolution.resolutionId),
@@ -1188,6 +1240,14 @@ class _ResolutionNotice extends StatelessWidget {
               trailing: resolution.searchScope.isEmpty
                   ? null
                   : resolution.searchScope.replaceAll('_', ' '),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ReadAloudButton(
+                textToRead: speechText,
+                locale: locale,
+              ),
             ),
             const SizedBox(height: 9),
             Text(
@@ -1261,6 +1321,11 @@ class _ResolutionNotice extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ReadAloudButton(textToRead: speechText, locale: locale),
+          ),
           const SizedBox(height: 10),
           _NodeOptionCard(
             suggestion: concept,
@@ -1291,6 +1356,18 @@ class _ResolutionNotice extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _speechText(LearningConceptSuggestion? concept) {
+    final parts = <String>[
+      if (resolution.clarificationQuestion case final question?) question,
+      if (resolution.searchScopeReason case final reason?) reason,
+      if (concept != null)
+        '${concept.title}. ${_nodeDescription(concept, isIndonesian: isIndonesian)}',
+      for (final alternative in resolution.alternatives.take(4))
+        '${alternative.title}. ${_nodeDescription(alternative, isIndonesian: isIndonesian)}',
+    ];
+    return parts.join('. ');
   }
 }
 

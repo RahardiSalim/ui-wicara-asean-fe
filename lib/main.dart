@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:record/record.dart';
 
 import 'src/app/wicara_app.dart';
+import 'src/core/accessibility/speech_accessibility_scope.dart';
+import 'src/core/accessibility/speech_api_client.dart';
+import 'src/core/accessibility/speech_controller.dart';
 import 'src/core/network/api_client.dart';
 import 'src/features/auth/application/auth_controller.dart';
 import 'src/features/auth/data/api_auth_repository.dart';
@@ -54,6 +59,12 @@ Future<void> main() async {
   final apiClient = ApiClient(
     baseUrl: ApiClient.resolveRuntimeBaseUrl(ApiClient.defaultBaseUrl),
   );
+  final speechController = SpeechController(
+    apiClient: SpeechApiClient(baseUrl: apiClient.baseUrl),
+    player: AudioPlayer(),
+    recorder: AudioRecorder(),
+  );
+  await speechController.init();
   final googleWebClientId = resolveGoogleWebClientId(_googleWebClientId);
   final authController = AuthController(
     authRepository: ApiAuthRepository(
@@ -85,39 +96,42 @@ Future<void> main() async {
   );
 
   runApp(
-    WicaraApp(
-      authController: authController,
-      onboardingController: onboardingController,
-      curriculumRepository: localCurriculumRepository,
-      learningGoalRepository: LocalLearningGoalRepository(
-        localCurriculumRepository: localCurriculumRepository,
-        pretestSessionStore: pretestStore,
-      ),
-      homeRepository: ApiHomeRepository(
-        apiClient: apiClient,
-        sessionStore: sessionStore,
-      ),
-      reviewRepository: ApiReviewRepository(apiClient: apiClient),
-      analyticsRepository: ApiAnalyticsRepository(apiClient: apiClient),
-      onboardingRepository: ApiOnboardingRepository(
-        apiClient: apiClient,
-        sessionStore: sessionStore,
-      ),
-      pretestRepository: LocalPretestRepository(
-        localDatabase: localDatabase,
-        pretestSessionStore: pretestStore,
-        localCurriculumRepository: localCurriculumRepository,
-        backendRepository: backendPretestRepository,
-        forceLocalForPilot: _edgeLiteRtForceLocalForPilot,
-        allowBackendFallback: false,
-      ),
-      workspaceRepository: ApiWorkspaceRepository(
-        apiClient: apiClient,
-        sessionStore: sessionStore,
-        workspaceSessionStore: workspaceStore,
-        edgeForceLocalForPilot: _edgeLiteRtForceLocalForPilot,
-        edgeCloudFallbackAllowed: _edgeCloudFallbackAllowed,
-        edgeDebugRouteTrace: _edgeDebugRouteTrace,
+    SpeechAccessibilityScope(
+      notifier: speechController,
+      child: WicaraApp(
+        authController: authController,
+        onboardingController: onboardingController,
+        curriculumRepository: localCurriculumRepository,
+        learningGoalRepository: LocalLearningGoalRepository(
+          localCurriculumRepository: localCurriculumRepository,
+          pretestSessionStore: pretestStore,
+        ),
+        homeRepository: ApiHomeRepository(
+          apiClient: apiClient,
+          sessionStore: sessionStore,
+        ),
+        reviewRepository: ApiReviewRepository(apiClient: apiClient),
+        analyticsRepository: ApiAnalyticsRepository(apiClient: apiClient),
+        onboardingRepository: ApiOnboardingRepository(
+          apiClient: apiClient,
+          sessionStore: sessionStore,
+        ),
+        pretestRepository: LocalPretestRepository(
+          localDatabase: localDatabase,
+          pretestSessionStore: pretestStore,
+          localCurriculumRepository: localCurriculumRepository,
+          backendRepository: backendPretestRepository,
+          forceLocalForPilot: _edgeLiteRtForceLocalForPilot,
+          allowBackendFallback: false,
+        ),
+        workspaceRepository: ApiWorkspaceRepository(
+          apiClient: apiClient,
+          sessionStore: sessionStore,
+          workspaceSessionStore: workspaceStore,
+          edgeForceLocalForPilot: _edgeLiteRtForceLocalForPilot,
+          edgeCloudFallbackAllowed: _edgeCloudFallbackAllowed,
+          edgeDebugRouteTrace: _edgeDebugRouteTrace,
+        ),
       ),
     ),
   );

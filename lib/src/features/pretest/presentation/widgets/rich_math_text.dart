@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 
+import '../../../../core/accessibility/speech_text_formatter.dart';
 import '../../../../core/theme/wicara_colors.dart';
 
 class RichMathText extends StatelessWidget {
@@ -10,6 +11,7 @@ class RichMathText extends StatelessWidget {
     this.textAlign,
     this.maxLines,
     this.overflow,
+    this.semanticsLabel,
     super.key,
   });
 
@@ -18,16 +20,22 @@ class RichMathText extends StatelessWidget {
   final TextAlign? textAlign;
   final int? maxLines;
   final TextOverflow? overflow;
+  final String? semanticsLabel;
 
   @override
   Widget build(BuildContext context) {
     final baseStyle =
         style ?? DefaultTextStyle.of(context).style.copyWith(height: 1.3);
-    return Text.rich(
-      TextSpan(children: _spans(text, baseStyle)),
-      textAlign: textAlign,
-      maxLines: maxLines,
-      overflow: overflow ?? TextOverflow.clip,
+    return Semantics(
+      label: semanticsLabel ?? SpeechTextFormatter.format(text),
+      child: ExcludeSemantics(
+        child: Text.rich(
+          TextSpan(children: _spans(text, baseStyle)),
+          textAlign: textAlign,
+          maxLines: maxLines,
+          overflow: overflow ?? TextOverflow.clip,
+        ),
+      ),
     );
   }
 }

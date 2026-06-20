@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wicara_mobile/src/app/app_routes.dart';
+import 'package:wicara_mobile/src/core/accessibility/speech_accessibility_scope.dart';
+import 'package:wicara_mobile/src/core/accessibility/speech_controller.dart';
 import 'package:wicara_mobile/src/core/theme/wicara_theme.dart';
 import 'package:wicara_mobile/src/features/learning_goal/domain/learning_goal_repository.dart';
 import 'package:wicara_mobile/src/features/learning_goal/presentation/learning_goal_page.dart';
 import 'package:wicara_mobile/src/features/onboarding/application/onboarding_controller.dart';
 import 'package:wicara_mobile/src/features/onboarding/data/mock_onboarding_repository.dart';
 import 'package:wicara_mobile/src/features/onboarding/data/onboarding_profile_store.dart';
+
+import 'support/speech_fakes.dart';
 
 void main() {
   setUp(() {
@@ -33,6 +37,24 @@ void main() {
     expect(find.text('Science'), findsNothing);
     expect(find.text('IPA'), findsNothing);
     expect(find.text('IPAS'), findsNothing);
+  });
+
+  testWidgets('voice input inserts a transcript without resolving the goal', (
+    tester,
+  ) async {
+    final repository = _RecordingLearningGoalRepository();
+    await _pumpLearningGoalPage(tester, repository: repository);
+
+    await tester.tap(find.text('Voice input'));
+    await tester.pump();
+    expect(find.text('Listening...'), findsOneWidget);
+
+    await tester.tap(find.text('Listening...'));
+    await tester.pumpAndSettle();
+
+    final field = tester.widget<TextField>(find.byType(TextField).first);
+    expect(field.controller?.text, 'test transcript');
+    expect(repository.resolveCount, 0);
   });
 
   testWidgets('recommended node confirms without resolving again', (
@@ -236,19 +258,29 @@ Future<void> _pumpLearningGoalPage(
       selectedSubjects: selectedSubjects,
     ),
   );
+  final speechController = SpeechController(
+    apiClient: FakeSpeechApiClient(),
+    player: FakeAudioPlayer(),
+    recorder: FakeAudioRecorder(),
+  );
+  await speechController.init();
+  addTearDown(speechController.dispose);
 
   await tester.pumpWidget(
-    MaterialApp(
-      theme: WicaraTheme.light(),
-      routes: {
-        AppRoutes.pretest: (_) =>
-            const Scaffold(body: Center(child: Text('Pretest reached'))),
-        AppRoutes.home: (_) =>
-            const Scaffold(body: Center(child: Text('Home reached'))),
-      },
-      home: LearningGoalPage(
-        learningGoalRepository: repository,
-        onboardingController: onboardingController,
+    SpeechAccessibilityScope(
+      notifier: speechController,
+      child: MaterialApp(
+        theme: WicaraTheme.light(),
+        routes: {
+          AppRoutes.pretest: (_) =>
+              const Scaffold(body: Center(child: Text('Pretest reached'))),
+          AppRoutes.home: (_) =>
+              const Scaffold(body: Center(child: Text('Home reached'))),
+        },
+        home: LearningGoalPage(
+          learningGoalRepository: repository,
+          onboardingController: onboardingController,
+        ),
       ),
     ),
   );
