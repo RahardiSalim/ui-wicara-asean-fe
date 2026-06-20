@@ -16,6 +16,7 @@ import '../features/onboarding/domain/onboarding_repository.dart';
 import '../features/onboarding/presentation/onboarding_page.dart';
 import '../features/pretest/domain/pretest_repository.dart';
 import '../features/pretest/presentation/pretest_page.dart';
+import '../features/review/domain/review_models.dart';
 import '../features/workspace/domain/workspace_models.dart';
 import '../features/workspace/domain/workspace_repository.dart';
 import '../features/workspace/presentation/workspace_modules_page.dart';
@@ -31,6 +32,7 @@ class WicaraApp extends StatefulWidget {
     required this.pretestRepository,
     this.workspaceRepository,
     this.homeRepository,
+    this.reviewRepository,
     this.initialRoute = AppRoutes.landing,
     super.key,
   });
@@ -43,6 +45,7 @@ class WicaraApp extends StatefulWidget {
   final OnboardingRepository onboardingRepository;
   final PretestRepository pretestRepository;
   final WorkspaceRepository? workspaceRepository;
+  final ReviewRepository? reviewRepository;
   final String initialRoute;
 
   @override
@@ -171,6 +174,7 @@ class _WicaraAppState extends State<WicaraApp> {
         AppRoutes.pretest => PretestPage(
           pretestRepository: widget.pretestRepository,
           onboardingController: widget.onboardingController,
+          reviewRepository: widget.reviewRepository,
         ),
         AppRoutes.edgeAiSettings => const EdgeAiSettingsPage(),
         AppRoutes.home => AppHomePage(
@@ -180,6 +184,7 @@ class _WicaraAppState extends State<WicaraApp> {
               widget.homeRepository ?? const _UnavailableHomeRepository(),
           authController: widget.authController,
           onboardingController: widget.onboardingController,
+          reviewRepository: widget.reviewRepository,
           routeArguments: settings.arguments,
         ),
         AppRoutes.workspaceModules => WorkspaceModulesPage(

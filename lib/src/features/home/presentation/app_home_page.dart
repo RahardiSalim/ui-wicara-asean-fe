@@ -28,6 +28,9 @@ import '../domain/home_snapshot.dart';
 import '../../pretest/domain/pretest_models.dart';
 import '../../pretest/presentation/widgets/assessment_option_tile.dart';
 import '../../pretest/presentation/widgets/rich_math_text.dart';
+import '../../review/domain/review_models.dart';
+import '../../review/presentation/flag_review_button.dart';
+import '../../review/presentation/review_queue_page.dart';
 import '../../workspace/domain/workspace_models.dart';
 
 enum _HomeTab { home, queue, progress, profile }
@@ -84,6 +87,7 @@ class AppHomePage extends StatefulWidget {
     required this.homeRepository,
     required this.authController,
     required this.onboardingController,
+    this.reviewRepository,
     this.routeArguments,
     super.key,
   });
@@ -93,6 +97,7 @@ class AppHomePage extends StatefulWidget {
   final HomeRepository homeRepository;
   final AuthController authController;
   final OnboardingController onboardingController;
+  final ReviewRepository? reviewRepository;
   final Object? routeArguments;
 
   @override
@@ -136,11 +141,66 @@ class _AppHomePageState extends State<AppHomePage> {
   bool _autoOpenWorkspacePending = false;
   bool _edgeAiSetupPromptShown = false;
   bool _edgeAiSetupCheckInFlight = false;
+  bool _isTeacher = false;
+
+  Future<void> _checkTeacherRole() async {
+    final repo = widget.reviewRepository;
+    if (repo == null) {
+      return;
+    }
+    final isTeacher = await repo.isCurrentUserTeacher();
+    if (!mounted || isTeacher == _isTeacher) {
+      return;
+    }
+    setState(() => _isTeacher = isTeacher);
+  }
+
+  void _openTeacherReview() {
+    final repo = widget.reviewRepository;
+    if (repo == null) {
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ReviewQueuePage(repository: repo),
+      ),
+    );
+  }
+
+  /// After an answer is scored, offer a brief, non-blocking way to flag the AI's
+  /// evaluation of the learner's reasoning (artifact_type 'evaluation').
+  void _offerEvaluationFlag(String attemptId) {
+    final repo = widget.reviewRepository;
+    if (repo == null || !canFlagArtifact(repo, attemptId)) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Answer scored by AI.'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Scoring off?',
+            onPressed: () {
+              promptAndFlag(
+                context: context,
+                repository: repo,
+                artifactType: 'evaluation',
+                artifactId: attemptId,
+              );
+            },
+          ),
+        ),
+      );
+  }
 
   @override
   void initState() {
     super.initState();
     _homeSnapshotFuture = widget.homeRepository.fetchSnapshot();
+    unawaited(_checkTeacherRole());
     final shouldOpenGoalHistory = _shouldOpenGoalHistory(widget.routeArguments);
     _autoOpenWorkspacePending =
         _shouldAutoOpenWorkspace(widget.routeArguments) &&
@@ -483,7 +543,7 @@ class _AppHomePageState extends State<AppHomePage> {
 
     setState(() => _isSubmittingDailyEvaluation = true);
     try {
-      await widget.homeRepository.submitDailyEvaluationAnswer(
+      final answerResult = await widget.homeRepository.submitDailyEvaluationAnswer(
         sessionId: sessionId,
         questionId: question.id,
         optionId: optionId,
@@ -510,6 +570,7 @@ class _AppHomePageState extends State<AppHomePage> {
         _showDailyEvaluation = false;
         _showEvaluationResult = true;
       });
+      _offerEvaluationFlag(answerResult.attemptId);
     } catch (error) {
       if (!mounted) {
         return;
@@ -694,6 +755,7 @@ class _AppHomePageState extends State<AppHomePage> {
       if (!mounted) {
         return;
       }
+      _offerEvaluationFlag(answerResult.attemptId);
       final isLastQuestion = _posttestIndex >= questions.length - 1;
       if (!isLastQuestion && !answerResult.completed) {
         setState(() {
@@ -787,6 +849,15 @@ class _AppHomePageState extends State<AppHomePage> {
         );
 
         return Scaffold(
+          floatingActionButton: (_isTeacher && widget.reviewRepository != null)
+              ? FloatingActionButton.extended(
+                  backgroundColor: WicaraColors.primaryDeep,
+                  foregroundColor: Colors.white,
+                  icon: const Icon(Icons.rate_review_outlined),
+                  label: const Text('Teacher review'),
+                  onPressed: _openTeacherReview,
+                )
+              : null,
           body: _HomeCopyScope(
             copy: copy,
             child: SafeArea(
@@ -904,6 +975,7 @@ class _AppHomePageState extends State<AppHomePage> {
         constraints: constraints,
         session: _posttestSessionData,
         question: _backendPosttestQuestions[_posttestIndex],
+        reviewRepository: widget.reviewRepository,
         questionIndex: _posttestIndex,
         totalQuestions: _backendPosttestQuestions.length,
         selectedOptionId: _posttestAnswers[_posttestIndex],
@@ -966,6 +1038,7 @@ class _AppHomePageState extends State<AppHomePage> {
         constraints: constraints,
         session: _dailyEvaluationSession,
         question: _backendDailyEvaluationQuestions[_dailyEvaluationIndex],
+        reviewRepository: widget.reviewRepository,
         questionIndex: _dailyEvaluationIndex,
         totalQuestions: _backendDailyEvaluationQuestions.length,
         selectedOptionId: _dailyEvaluationAnswers[_dailyEvaluationIndex],
@@ -3380,6 +3453,7 @@ class _DailyEvaluationQuestionPage extends StatelessWidget {
     required this.onSelected,
     required this.isSubmitting,
     required this.onSubmit,
+    this.reviewRepository,
     this.sectionLabel,
     this.subtitle,
     this.nextLabel,
@@ -3391,6 +3465,7 @@ class _DailyEvaluationQuestionPage extends StatelessWidget {
   final BoxConstraints constraints;
   final DailyEvaluationSession? session;
   final PretestQuestion question;
+  final ReviewRepository? reviewRepository;
   final int questionIndex;
   final int totalQuestions;
   final String? selectedOptionId;
@@ -3461,26 +3536,36 @@ class _DailyEvaluationQuestionPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 13,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: WicaraColors.speechBlue,
-                        borderRadius: BorderRadius.circular(17),
-                        border: Border.all(color: WicaraColors.line),
-                      ),
-                      child: Text(
-                        question.topic,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: WicaraColors.muted,
-                          fontWeight: FontWeight.w600,
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 13,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: WicaraColors.speechBlue,
+                            borderRadius: BorderRadius.circular(17),
+                            border: Border.all(color: WicaraColors.line),
+                          ),
+                          child: Text(
+                            question.topic,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: WicaraColors.muted,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      const Spacer(),
+                      FlagReviewButton(
+                        repository: reviewRepository,
+                        artifactType: 'question',
+                        artifactId: question.id,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 26),
                   RichMathText(

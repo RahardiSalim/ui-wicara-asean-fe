@@ -7,6 +7,8 @@ import '../../../core/theme/wicara_colors.dart';
 import '../../../core/widgets/gradient_button.dart';
 import '../../onboarding/application/onboarding_controller.dart';
 import '../../onboarding/domain/onboarding_copy.dart';
+import '../../review/domain/review_models.dart';
+import '../../review/presentation/flag_review_button.dart';
 import '../domain/pretest_models.dart';
 import '../domain/pretest_repository.dart';
 import 'widgets/assessment_option_tile.dart';
@@ -20,11 +22,13 @@ class PretestPage extends StatefulWidget {
   const PretestPage({
     required this.pretestRepository,
     required this.onboardingController,
+    this.reviewRepository,
     super.key,
   });
 
   final PretestRepository pretestRepository;
   final OnboardingController onboardingController;
+  final ReviewRepository? reviewRepository;
 
   @override
   State<PretestPage> createState() => _PretestPageState();
@@ -343,6 +347,7 @@ class _PretestPageState extends State<PretestPage> {
         constraints: constraints,
         copy: copy,
         question: question,
+        reviewRepository: widget.reviewRepository,
         progressValue: (question.progressCurrent / question.progressMax)
             .clamp(0.0, 1.0)
             .toDouble(),
@@ -454,11 +459,13 @@ class _QuestionStage extends StatelessWidget {
     required this.addEvidenceLabel,
     required this.onSubmit,
     required this.onAddEvidence,
+    this.reviewRepository,
   });
 
   final BoxConstraints constraints;
   final OnboardingCopy copy;
   final PretestQuestion question;
+  final ReviewRepository? reviewRepository;
   final double progressValue;
   final String selectedOptionId;
   final bool isSubmitting;
@@ -560,6 +567,15 @@ class _QuestionStage extends StatelessWidget {
                       height: 1.22,
                     ),
                   ),
+                  if (FlagReviewButton.canFlag(reviewRepository, question.id))
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FlagReviewButton(
+                        repository: reviewRepository,
+                        artifactType: 'question',
+                        artifactId: question.id,
+                      ),
+                    ),
                   SizedBox(height: compact ? 18 : 25),
                   RichMathText(
                     question.helper,

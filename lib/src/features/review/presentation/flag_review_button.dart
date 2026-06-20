@@ -1,0 +1,174 @@
+import 'package:flutter/material.dart';
+
+import '../../../core/theme/wicara_colors.dart';
+import '../domain/review_models.dart';
+
+final _uuidPattern = RegExp(
+  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+);
+
+/// True when a learner flag can target this artifact: we have a repository and
+/// the id is a real backend UUID (offline-generated items have no server-side
+/// artifact to review).
+bool canFlagArtifact(ReviewRepository? repository, String artifactId) =>
+    repository != null && _uuidPattern.hasMatch(artifactId.trim());
+
+/// Shows the reason dialog and sends a manual flag to the teacher review queue.
+/// Returns true on success. Non-blocking: the learner keeps going regardless.
+Future<bool> promptAndFlag({
+  required BuildContext context,
+  required ReviewRepository repository,
+  required String artifactType,
+  required String artifactId,
+}) async {
+  final reason = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) {
+      final controller = TextEditingController();
+      return AlertDialog(
+        title: const Text('Flag for a teacher'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Tell us what looks wrong. A teacher will review it — your '
+              'learning continues either way.',
+              style: TextStyle(color: WicaraColors.muted, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                hintText: 'e.g. the marked answer seems wrong',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final text = controller.text.trim();
+              if (text.isEmpty) return;
+              Navigator.of(dialogContext).pop(text);
+            },
+            child: const Text('Send'),
+          ),
+        ],
+      );
+    },
+  );
+  if (reason == null) return false;
+
+  try {
+    await repository.flag(
+      artifactType: artifactType,
+      artifactId: artifactId,
+      reason: reason,
+    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(content: Text('Sent to a teacher for review. Thanks!')),
+        );
+    }
+    return true;
+  } catch (_) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(content: Text('Could not send the flag right now.')),
+        );
+    }
+    return false;
+  }
+}
+
+/// A small learner-facing "this looks wrong" affordance that sends a manual
+/// flag to the teacher review queue. Renders nothing unless [canFlagArtifact].
+class FlagReviewButton extends StatefulWidget {
+  const FlagReviewButton({
+    required this.repository,
+    required this.artifactType,
+    required this.artifactId,
+    this.compact = false,
+    super.key,
+  });
+
+  final ReviewRepository? repository;
+  final String artifactType;
+  final String artifactId;
+  final bool compact;
+
+  static bool canFlag(ReviewRepository? repository, String artifactId) =>
+      canFlagArtifact(repository, artifactId);
+
+  @override
+  State<FlagReviewButton> createState() => _FlagReviewButtonState();
+}
+
+class _FlagReviewButtonState extends State<FlagReviewButton> {
+  bool _sending = false;
+  bool _flagged = false;
+
+  Future<void> _flag() async {
+    final repository = widget.repository;
+    if (repository == null || _sending || _flagged) return;
+    setState(() => _sending = true);
+    final ok = await promptAndFlag(
+      context: context,
+      repository: repository,
+      artifactType: widget.artifactType,
+      artifactId: widget.artifactId,
+    );
+    if (!mounted) return;
+    setState(() {
+      _sending = false;
+      _flagged = ok || _flagged;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!FlagReviewButton.canFlag(widget.repository, widget.artifactId)) {
+      return const SizedBox.shrink();
+    }
+    final icon = _flagged ? Icons.flag : Icons.outlined_flag;
+    final color = _flagged ? WicaraColors.accentMint : WicaraColors.muted;
+    final label = _flagged ? 'Flagged' : 'Looks wrong?';
+
+    if (widget.compact) {
+      return IconButton(
+        tooltip: label,
+        onPressed: _flagged || _sending ? null : _flag,
+        icon: _sending
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(icon, size: 18, color: color),
+      );
+    }
+
+    return TextButton.icon(
+      onPressed: _flagged || _sending ? null : _flag,
+      style: TextButton.styleFrom(foregroundColor: color),
+      icon: _sending
+          ? const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(icon, size: 16),
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+    );
+  }
+}

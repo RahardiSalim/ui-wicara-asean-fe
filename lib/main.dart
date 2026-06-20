@@ -17,6 +17,7 @@ import 'src/features/offline_learning/data/local_wicara_database.dart';
 import 'src/features/offline_pretest/data/local_pretest_repository.dart';
 import 'src/features/pretest/data/api_pretest_repository.dart';
 import 'src/features/pretest/data/pretest_session_store.dart';
+import 'src/features/review/data/api_review_repository.dart';
 import 'src/features/workspace/data/api_workspace_repository.dart';
 import 'src/features/workspace/data/workspace_session_store.dart';
 
@@ -95,6 +96,7 @@ Future<void> main() async {
         apiClient: apiClient,
         sessionStore: sessionStore,
       ),
+      reviewRepository: ApiReviewRepository(apiClient: apiClient),
       onboardingRepository: ApiOnboardingRepository(
         apiClient: apiClient,
         sessionStore: sessionStore,
