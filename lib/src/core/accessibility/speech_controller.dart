@@ -49,6 +49,13 @@ class SpeechController extends ChangeNotifier {
   Future<void> init() async {
     if (_disposed) return;
     _ttsAvailable = true;
+    if (kIsWeb) {
+      // Browsers may not resolve microphone permission before a user gesture.
+      // Keep startup non-blocking and let startStream request it on mic tap.
+      _sttAvailable = true;
+      _notify();
+      return;
+    }
     try {
       _sttAvailable = await _recorder.hasPermission();
     } catch (_) {
@@ -169,6 +176,7 @@ class SpeechController extends ChangeNotifier {
       _listeningGeneration = generation;
       _setMode(SpeechMode.listening);
     } on Object catch (error) {
+      _sttAvailable = false;
       _setError(error.toString());
     }
   }

@@ -147,9 +147,11 @@ class SpeedSelector extends StatelessWidget {
         label: copy.speechSpeed,
         value: copy.speechSpeedValue(1),
         enabled: false,
-        child: const SegmentedButton<double>(
-          segments: [ButtonSegment<double>(value: 1, label: Text('1x'))],
-          selected: {1.0},
+        child: SegmentedButton<double>(
+          segments: const [
+            ButtonSegment<double>(value: 1.0, label: Text('1x')),
+          ],
+          selected: const {1.0},
           onSelectionChanged: null,
         ),
       );

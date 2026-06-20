@@ -12,8 +12,12 @@ import 'src/features/auth/data/api_auth_repository.dart';
 import 'src/features/analytics/data/api_analytics_repository.dart';
 import 'src/features/auth/data/auth_session_store.dart';
 import 'src/features/auth/data/google_web_client_id.dart';
+import 'src/features/curriculum/data/api_curriculum_repository.dart';
+import 'src/features/curriculum/domain/curriculum_repository.dart';
 import 'src/features/home/data/api_home_repository.dart';
+import 'src/features/learning_goal/data/api_learning_goal_repository.dart';
 import 'src/features/learning_goal/data/local_learning_goal_repository.dart';
+import 'src/features/learning_goal/domain/learning_goal_repository.dart';
 import 'src/features/onboarding/application/onboarding_controller.dart';
 import 'src/features/onboarding/data/api_onboarding_repository.dart';
 import 'src/features/onboarding/data/onboarding_profile_store.dart';
@@ -23,6 +27,7 @@ import 'src/features/offline_learning/data/local_wicara_database.dart';
 import 'src/features/offline_pretest/data/local_pretest_repository.dart';
 import 'src/features/pretest/data/api_pretest_repository.dart';
 import 'src/features/pretest/data/pretest_session_store.dart';
+import 'src/features/pretest/domain/pretest_repository.dart';
 import 'src/features/review/data/api_review_repository.dart';
 import 'src/features/workspace/data/api_workspace_repository.dart';
 import 'src/features/workspace/data/workspace_session_store.dart';
@@ -94,6 +99,31 @@ Future<void> main() async {
     sessionStore: sessionStore,
     pretestSessionStore: pretestStore,
   );
+  final CurriculumRepository curriculumRepository =
+      localDatabase.isPlatformSupported
+      ? localCurriculumRepository
+      : ApiCurriculumRepository(apiClient: apiClient);
+  final LearningGoalRepository learningGoalRepository =
+      localDatabase.isPlatformSupported
+      ? LocalLearningGoalRepository(
+          localCurriculumRepository: localCurriculumRepository,
+          pretestSessionStore: pretestStore,
+        )
+      : ApiLearningGoalRepository(
+          apiClient: apiClient,
+          sessionStore: sessionStore,
+          pretestSessionStore: pretestStore,
+        );
+  final PretestRepository pretestRepository = localDatabase.isPlatformSupported
+      ? LocalPretestRepository(
+          localDatabase: localDatabase,
+          pretestSessionStore: pretestStore,
+          localCurriculumRepository: localCurriculumRepository,
+          backendRepository: backendPretestRepository,
+          forceLocalForPilot: _edgeLiteRtForceLocalForPilot,
+          allowBackendFallback: false,
+        )
+      : backendPretestRepository;
 
   runApp(
     SpeechAccessibilityScope(
@@ -101,11 +131,8 @@ Future<void> main() async {
       child: WicaraApp(
         authController: authController,
         onboardingController: onboardingController,
-        curriculumRepository: localCurriculumRepository,
-        learningGoalRepository: LocalLearningGoalRepository(
-          localCurriculumRepository: localCurriculumRepository,
-          pretestSessionStore: pretestStore,
-        ),
+        curriculumRepository: curriculumRepository,
+        learningGoalRepository: learningGoalRepository,
         homeRepository: ApiHomeRepository(
           apiClient: apiClient,
           sessionStore: sessionStore,
@@ -116,14 +143,7 @@ Future<void> main() async {
           apiClient: apiClient,
           sessionStore: sessionStore,
         ),
-        pretestRepository: LocalPretestRepository(
-          localDatabase: localDatabase,
-          pretestSessionStore: pretestStore,
-          localCurriculumRepository: localCurriculumRepository,
-          backendRepository: backendPretestRepository,
-          forceLocalForPilot: _edgeLiteRtForceLocalForPilot,
-          allowBackendFallback: false,
-        ),
+        pretestRepository: pretestRepository,
         workspaceRepository: ApiWorkspaceRepository(
           apiClient: apiClient,
           sessionStore: sessionStore,

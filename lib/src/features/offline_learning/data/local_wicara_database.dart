@@ -18,12 +18,12 @@ class LocalWicaraDatabase {
     Future<String> Function()? databasePathProvider,
     this.databaseName = _defaultDatabaseName,
     this.enforcePlatformSupport = true,
-  }) : _databaseFactory = databaseFactoryOverride ?? databaseFactory,
+  }) : _databaseFactoryOverride = databaseFactoryOverride,
        _databasePathProvider = databasePathProvider;
 
   static const _defaultDatabaseName = 'wicara_offline.db';
 
-  final DatabaseFactory _databaseFactory;
+  final DatabaseFactory? _databaseFactoryOverride;
   final Future<String> Function()? _databasePathProvider;
   final String databaseName;
   final bool enforcePlatformSupport;
@@ -54,8 +54,12 @@ class LocalWicaraDatabase {
       );
     }
 
+    final resolvedDatabaseFactory = _databaseFactoryOverride ??
+        // Accessing sqflite's global factory is unsafe on web, so resolve it
+        // only after the platform check above.
+        databaseFactory;
     final resolvedPath = await _resolveDatabasePath();
-    _database = await _databaseFactory.openDatabase(
+    _database = await resolvedDatabaseFactory.openDatabase(
       resolvedPath,
       options: OpenDatabaseOptions(
         version: 2,
@@ -87,9 +91,15 @@ CREATE TABLE IF NOT EXISTS ${LocalDbTables.localMeta} (
   }
 
   Future<void> deleteDatabaseFile() async {
+    if (enforcePlatformSupport && !isPlatformSupported) {
+      throw UnsupportedError(
+        'Offline local database is not supported on this platform.',
+      );
+    }
     await close();
+    final resolvedDatabaseFactory = _databaseFactoryOverride ?? databaseFactory;
     final resolvedPath = await _resolveDatabasePath();
-    await _databaseFactory.deleteDatabase(resolvedPath);
+    await resolvedDatabaseFactory.deleteDatabase(resolvedPath);
   }
 
   Future<String> _resolveDatabasePath() async {

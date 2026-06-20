@@ -1,36 +1,21 @@
+import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiClient {
   ApiClient({required this.baseUrl, http.Client? httpClient})
     : _httpClient = httpClient ?? http.Client();
 
-  static const deployedBaseUrl = 'http://16.78.247.45';
-
   static const defaultBaseUrl = String.fromEnvironment(
     'WICARA_API_BASE_URL',
-    defaultValue: deployedBaseUrl,
+    defaultValue: 'http://127.0.0.1:8000',
   );
 
-  /// Prevents a loopback URL from being used in web environments where the
-  /// app is not served from localhost/127.0.0.1.
+  /// Production builds must provide WICARA_API_BASE_URL explicitly. Silently
+  /// replacing a configured URL made local auth call a stale deployment.
   static String resolveRuntimeBaseUrl(String configuredBaseUrl) {
-    final configuredUri = Uri.tryParse(configuredBaseUrl);
-    if (configuredUri == null) return configuredBaseUrl;
-    if (!kIsWeb) return configuredBaseUrl;
-
-    final configuredHost = configuredUri.host.toLowerCase();
-    final isConfiguredLoopback =
-        configuredHost == '127.0.0.1' || configuredHost == 'localhost';
-    if (!isConfiguredLoopback) return configuredBaseUrl;
-
-    final webHost = Uri.base.host.toLowerCase();
-    final isWebLoopback = webHost == '127.0.0.1' || webHost == 'localhost';
-    if (isWebLoopback) return configuredBaseUrl;
-
-    return deployedBaseUrl;
+    return configuredBaseUrl.trim();
   }
 
   final String baseUrl;
@@ -87,9 +72,20 @@ class ApiClient {
       ..._buildHeaders(includeJsonContentType: true),
       ...?headers,
     };
-    final response = await _httpClient
-        .post(uri, headers: mergedHeaders, body: jsonEncode(body ?? const {}))
-        .timeout(timeout);
+    final http.Response response;
+    try {
+      response = await _httpClient
+          .post(uri, headers: mergedHeaders, body: jsonEncode(body ?? const {}))
+          .timeout(timeout);
+    } on TimeoutException {
+      throw ApiClientException(
+        'Cannot reach the WICARA server at $baseUrl. Check the API URL and server status.',
+      );
+    } on http.ClientException catch (error) {
+      throw ApiClientException(
+        'Cannot reach the WICARA server at $baseUrl. ${error.message}',
+      );
+    }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final (msg, rawDetail) = _errorMessageAndDetail(

@@ -58,11 +58,20 @@ class _GoogleIdentityButtonState extends State<_GoogleIdentityButton> {
 
   void _renderButton(web.HTMLDivElement element) {
     google_loader.loadWebSdk().then((_) {
+      final clientId = _resolveGoogleClientId();
+      if (clientId == null) {
+        element.textContent =
+            'Google Sign-In is not configured. Set WICARA_GOOGLE_WEB_CLIENT_ID.';
+        element.style
+          ..color = '#8A1C1C'
+          ..fontSize = '13px'
+          ..padding = '12px'
+          ..textAlign = 'center';
+        return;
+      }
       google_id.id.initialize(
         google_id.IdConfiguration(
-          client_id: const String.fromEnvironment(
-            'WICARA_GOOGLE_WEB_CLIENT_ID',
-          ),
+          client_id: clientId,
           callback: _handleCredential,
           nonce: _hashedNonce,
           use_fedcm_for_prompt: true,
@@ -109,6 +118,25 @@ class _GoogleIdentityButtonState extends State<_GoogleIdentityButton> {
       ),
     );
   }
+}
+
+String? _resolveGoogleClientId() {
+  const compiledValue = String.fromEnvironment('WICARA_GOOGLE_WEB_CLIENT_ID');
+  final configured = compiledValue.trim();
+  if (_isUsableGoogleClientId(configured)) return configured;
+
+  final metaValue = web.document
+      .querySelector('meta[name="google-signin-client_id"]')
+      ?.getAttribute('content')
+      ?.trim();
+  return _isUsableGoogleClientId(metaValue) ? metaValue : null;
+}
+
+bool _isUsableGoogleClientId(String? value) {
+  return value != null &&
+      value.isNotEmpty &&
+      !value.startsWith('YOUR_') &&
+      value.endsWith('.apps.googleusercontent.com');
 }
 
 String _generateNonce() {

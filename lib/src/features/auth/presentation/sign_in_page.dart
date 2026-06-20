@@ -122,7 +122,8 @@ class _SignInPageState extends State<SignInPage> {
   }
 
   void _startGoogleWebSignIn() {
-    setState(() => _isSubmitting = true);
+    // The rendered Google button owns the popup. Loading begins only after a
+    // credential is returned so cancellation does not leave the form disabled.
   }
 
   Future<void> _continueWithGoogleIdToken(

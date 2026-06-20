@@ -58,6 +58,8 @@ class ApiAuthRepository implements AuthRepository {
       return session;
     } on ApiClientException catch (error) {
       throw AuthException(error.message);
+    } catch (error) {
+      throw AuthException('Sign-in failed: $error');
     }
   }
 
@@ -83,6 +85,8 @@ class ApiAuthRepository implements AuthRepository {
       return session;
     } on ApiClientException catch (error) {
       throw AuthException(error.message);
+    } catch (error) {
+      throw AuthException('Registration failed: $error');
     }
   }
 
