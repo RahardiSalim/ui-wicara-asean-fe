@@ -58,6 +58,7 @@ class ApiOnboardingRepository implements OnboardingRepository {
       'bahasa melayu' || 'malay' => 'ms',
       'filipino' || 'tagalog' => 'fil',
       'vietnamese' || 'tieng viet' => 'vi',
+      'thai' || 'ภาษาไทย' => 'th',
       _ => normalized.isEmpty ? 'en' : normalized,
     };
   }

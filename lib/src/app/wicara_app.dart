@@ -16,6 +16,7 @@ import '../features/onboarding/domain/onboarding_repository.dart';
 import '../features/onboarding/presentation/onboarding_page.dart';
 import '../features/pretest/domain/pretest_repository.dart';
 import '../features/pretest/presentation/pretest_page.dart';
+import '../features/analytics/domain/analytics_models.dart';
 import '../features/review/domain/review_models.dart';
 import '../features/workspace/domain/workspace_models.dart';
 import '../features/workspace/domain/workspace_repository.dart';
@@ -33,6 +34,7 @@ class WicaraApp extends StatefulWidget {
     this.workspaceRepository,
     this.homeRepository,
     this.reviewRepository,
+    this.analyticsRepository,
     this.initialRoute = AppRoutes.landing,
     super.key,
   });
@@ -46,6 +48,7 @@ class WicaraApp extends StatefulWidget {
   final PretestRepository pretestRepository;
   final WorkspaceRepository? workspaceRepository;
   final ReviewRepository? reviewRepository;
+  final AnalyticsRepository? analyticsRepository;
   final String initialRoute;
 
   @override
@@ -185,6 +188,7 @@ class _WicaraAppState extends State<WicaraApp> {
           authController: widget.authController,
           onboardingController: widget.onboardingController,
           reviewRepository: widget.reviewRepository,
+          analyticsRepository: widget.analyticsRepository,
           routeArguments: settings.arguments,
         ),
         AppRoutes.workspaceModules => WorkspaceModulesPage(

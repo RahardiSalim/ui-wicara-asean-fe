@@ -28,6 +28,8 @@ import '../domain/home_snapshot.dart';
 import '../../pretest/domain/pretest_models.dart';
 import '../../pretest/presentation/widgets/assessment_option_tile.dart';
 import '../../pretest/presentation/widgets/rich_math_text.dart';
+import '../../analytics/domain/analytics_models.dart';
+import '../../analytics/presentation/insights_page.dart';
 import '../../review/domain/review_models.dart';
 import '../../review/presentation/flag_review_button.dart';
 import '../../review/presentation/review_queue_page.dart';
@@ -88,6 +90,7 @@ class AppHomePage extends StatefulWidget {
     required this.authController,
     required this.onboardingController,
     this.reviewRepository,
+    this.analyticsRepository,
     this.routeArguments,
     super.key,
   });
@@ -98,6 +101,7 @@ class AppHomePage extends StatefulWidget {
   final AuthController authController;
   final OnboardingController onboardingController;
   final ReviewRepository? reviewRepository;
+  final AnalyticsRepository? analyticsRepository;
   final Object? routeArguments;
 
   @override
@@ -165,6 +169,40 @@ class _AppHomePageState extends State<AppHomePage> {
         builder: (_) => ReviewQueuePage(repository: repo),
       ),
     );
+  }
+
+  void _openInsights() {
+    final repo = widget.analyticsRepository;
+    if (repo == null) {
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => InsightsPage(repository: repo),
+      ),
+    );
+  }
+
+  Widget? _homeFab() {
+    if (_isTeacher && widget.reviewRepository != null) {
+      return FloatingActionButton.extended(
+        backgroundColor: WicaraColors.primaryDeep,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.rate_review_outlined),
+        label: const Text('Teacher review'),
+        onPressed: _openTeacherReview,
+      );
+    }
+    if (widget.analyticsRepository != null) {
+      return FloatingActionButton.extended(
+        backgroundColor: WicaraColors.secondaryDeep,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.insights_outlined),
+        label: const Text('Insights'),
+        onPressed: _openInsights,
+      );
+    }
+    return null;
   }
 
   /// After an answer is scored, offer a brief, non-blocking way to flag the AI's
@@ -849,15 +887,7 @@ class _AppHomePageState extends State<AppHomePage> {
         );
 
         return Scaffold(
-          floatingActionButton: (_isTeacher && widget.reviewRepository != null)
-              ? FloatingActionButton.extended(
-                  backgroundColor: WicaraColors.primaryDeep,
-                  foregroundColor: Colors.white,
-                  icon: const Icon(Icons.rate_review_outlined),
-                  label: const Text('Teacher review'),
-                  onPressed: _openTeacherReview,
-                )
-              : null,
+          floatingActionButton: _homeFab(),
           body: _HomeCopyScope(
             copy: copy,
             child: SafeArea(

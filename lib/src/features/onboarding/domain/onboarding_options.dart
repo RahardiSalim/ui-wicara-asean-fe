@@ -227,7 +227,14 @@ const onboardingGradeLevelOptions = <String>[
   '12',
 ];
 
-const onboardingLanguageOptions = <String>['English', 'Bahasa Indonesia'];
+const onboardingLanguageOptions = <String>[
+  'English',
+  'Bahasa Indonesia',
+  'Bahasa Melayu',
+  'Vietnamese',
+  'Thai',
+  'Filipino',
+];
 
 const onboardingStudyGoalOptions = <String>[
   'Build strong foundations',
@@ -265,5 +272,10 @@ const onboardingSubjectOptions = <SubjectPreferenceOption>[
     key: 'Biology',
     icon: Icons.eco_outlined,
     tint: WicaraColors.biology,
+  ),
+  SubjectPreferenceOption(
+    key: 'Science',
+    icon: Icons.biotech_outlined,
+    tint: WicaraColors.accentMint,
   ),
 ];

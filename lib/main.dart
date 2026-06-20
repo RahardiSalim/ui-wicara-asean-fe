@@ -4,6 +4,7 @@ import 'src/app/wicara_app.dart';
 import 'src/core/network/api_client.dart';
 import 'src/features/auth/application/auth_controller.dart';
 import 'src/features/auth/data/api_auth_repository.dart';
+import 'src/features/analytics/data/api_analytics_repository.dart';
 import 'src/features/auth/data/auth_session_store.dart';
 import 'src/features/auth/data/google_web_client_id.dart';
 import 'src/features/home/data/api_home_repository.dart';
@@ -97,6 +98,7 @@ Future<void> main() async {
         sessionStore: sessionStore,
       ),
       reviewRepository: ApiReviewRepository(apiClient: apiClient),
+      analyticsRepository: ApiAnalyticsRepository(apiClient: apiClient),
       onboardingRepository: ApiOnboardingRepository(
         apiClient: apiClient,
         sessionStore: sessionStore,

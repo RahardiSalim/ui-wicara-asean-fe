@@ -401,6 +401,9 @@ class OnboardingCopy {
     'Kimia' => isIndonesian ? 'Kimia' : 'Chemistry',
     'Biology' => isIndonesian ? 'Biologi' : 'Biology',
     'Biologi' => isIndonesian ? 'Biologi' : 'Biology',
+    'Science' => isIndonesian ? 'IPA' : 'Science',
+    'IPA' => isIndonesian ? 'IPA' : 'Science',
+    'IPAS' => isIndonesian ? 'IPAS' : 'Science',
     _ => key,
   };
 
