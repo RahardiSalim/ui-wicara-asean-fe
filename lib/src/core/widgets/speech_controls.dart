@@ -151,7 +151,7 @@ class SpeedSelector extends StatelessWidget {
           segments: const [
             ButtonSegment<double>(value: 1.0, label: Text('1x')),
           ],
-          selected: const {1.0},
+          selected: {1.0},
           onSelectionChanged: null,
         ),
       );

@@ -110,11 +110,11 @@ void main() {
     await tester.ensureVisible(find.text('Review it briefly'));
     await tester.tap(find.text('Review it briefly'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Finish evaluation'));
-    await tester.tap(find.text('Finish evaluation'));
+    await tester.ensureVisible(find.text('Finish Daily Evals'));
+    await tester.tap(find.text('Finish Daily Evals'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Evaluation Complete'), findsWidgets);
+    expect(find.text('Evaluation Complete 🎉'), findsWidgets);
     expect(find.text('100%'), findsOneWidget);
     expect(find.text('Spaced Review'), findsOneWidget);
     expect(find.text('Recommended next actions'), findsOneWidget);
@@ -195,6 +195,13 @@ void main() {
     await tester.tap(find.text('12'));
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text('Start Posttest'));
+    await tester.tap(find.text('Start Posttest'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Start posttest'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Posttest Perkalian'), findsWidgets);
     final preferences = await SharedPreferences.getInstance();
     expect(preferences.getString('auth.lastProtectedRoute'), '/home');
@@ -216,13 +223,13 @@ void main() {
       await tester.pumpAndSettle();
       final isLastAnswer = answer == '40';
       await tester.ensureVisible(
-        find.text(isLastAnswer ? 'Selesai posttest' : 'Lanjut'),
+        find.text(isLastAnswer ? 'Finish posttest' : 'Continue'),
       );
-      await tester.tap(find.text(isLastAnswer ? 'Selesai posttest' : 'Lanjut'));
+      await tester.tap(find.text(isLastAnswer ? 'Finish posttest' : 'Continue'));
       await tester.pumpAndSettle();
     }
 
-    expect(find.text('Posttest Analysis'), findsWidgets);
+    expect(find.text('Posttest Results'), findsWidgets);
     expect(find.text('Mastery confirmed'), findsOneWidget);
     expect(find.text('Perkalian'), findsWidgets);
     expect(find.text('100%'), findsWidgets);
@@ -231,7 +238,7 @@ void main() {
     await tester.tap(find.text('Continue learning'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Posttest Analysis'), findsNothing);
+    expect(find.text('Posttest Results'), findsNothing);
     expect(find.text('Continue session'), findsOneWidget);
     expect(preferences.getString('auth.lastProtectedRoute'), '/home');
   });
@@ -272,8 +279,8 @@ void main() {
     await tester.pump();
     expect(speechController.mode, SpeechMode.speaking);
 
-    await tester.ensureVisible(find.text('Generate video from chat'));
-    await tester.tap(find.text('Generate video from chat'));
+    await tester.ensureVisible(find.text('Generate video from this chat'));
+    await tester.tap(find.text('Generate video from this chat'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Play generated video'));
     await tester.tap(find.text('Play generated video'));
@@ -309,8 +316,14 @@ void main() {
     await tester.tap(find.text('Start Posttest'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Workspace not finished yet'), findsOneWidget);
-    expect(find.text('Keep learning'), findsOneWidget);
+    expect(
+      find.text(
+        'You have not finished this workspace module. Starting the '
+        'posttest now may skip practice evidence for this concept.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Cancel'), findsOneWidget);
     expect(find.text('Start posttest'), findsOneWidget);
 
     await tester.tap(find.text('Start posttest'));
@@ -346,12 +359,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(_reportRangeLabelForTest(thisWeek)), findsOneWidget);
-    expect(find.text('Learning performance'), findsOneWidget);
-    expect(find.text('Learning gain'), findsOneWidget);
-    expect(find.text('+16%'), findsOneWidget);
-    expect(find.text('Unlocked this week'), findsOneWidget);
-    expect(find.text('Upcoming recommendations'), findsOneWidget);
-    expect(find.text('Consistency is compounding.'), findsOneWidget);
+    expect(find.text('This Week Summary'), findsOneWidget);
+    expect(find.text('Answer Accuracy'), findsOneWidget);
+    expect(find.text('Average Score'), findsOneWidget);
+    expect(find.text('Pre-test'), findsOneWidget);
+    expect(find.text('Post-test'), findsOneWidget);
 
     await tester.tap(find.text(_reportRangeLabelForTest(thisWeek)));
     await tester.pumpAndSettle();
@@ -616,6 +628,7 @@ class _FakeLearningGoalRepository implements LearningGoalRepository {
     String? conceptId,
     String? conceptCode,
     String? subjectCode,
+    String? language,
   }) async {
     return const LearningGoalBootstrap(learningGoalId: 'goal-1');
   }
@@ -863,6 +876,7 @@ class _FakeHomeRepository implements HomeRepository {
 
   @override
   Future<DailyEvaluationSession> startPosttest({
+    String? workspaceSessionId,
     String? learningGoalId,
     String? trackId,
     String? moduleId,
@@ -1023,6 +1037,9 @@ class _FakeWorkspaceRepository implements WorkspaceRepository {
       contentMode: 'chat',
       status: 'active',
       events: const [],
+      currentPhase: 'engage',
+      phaseTransitionPending: false,
+      posttestEligible: false,
     );
   }
 
@@ -1073,6 +1090,9 @@ class _FakeWorkspaceRepository implements WorkspaceRepository {
       contentMode: 'chat',
       status: 'active',
       events: [],
+      currentPhase: 'engage',
+      phaseTransitionPending: false,
+      posttestEligible: false,
     );
   }
 
@@ -1102,6 +1122,9 @@ class _FakeWorkspaceRepository implements WorkspaceRepository {
         contentMode: 'chat',
         status: 'active',
         events: [event],
+        currentPhase: 'evaluate',
+        phaseTransitionPending: false,
+        posttestEligible: true,
       ),
     );
   }
@@ -1134,6 +1157,9 @@ class _FakeWorkspaceRepository implements WorkspaceRepository {
       contentMode: 'chat',
       status: 'active',
       events: [event],
+      currentPhase: 'engage',
+      phaseTransitionPending: false,
+      posttestEligible: false,
     );
     return WorkspaceGenerateVideoResult(
       queue: const WorkspaceAnimationQueue(
@@ -1166,6 +1192,41 @@ class _FakeWorkspaceRepository implements WorkspaceRepository {
     required String moduleId,
     required String status,
   }) async {}
+
+  @override
+  Future<WorkspaceSession> advancePhase({
+    required String workspaceId,
+    bool force = false,
+  }) async {
+    return const WorkspaceSession(
+      id: 'workspace-perkalian',
+      trackId: 'track-perkalian',
+      moduleId: 'module-perkalian',
+      currentTopic: 'Perkalian',
+      contentMode: 'chat',
+      status: 'active',
+      events: [],
+      currentPhase: 'explore',
+      phaseTransitionPending: false,
+      posttestEligible: false,
+    );
+  }
+
+  @override
+  Future<WorkspaceSession> startPosttest({required String workspaceId}) async {
+    return const WorkspaceSession(
+      id: 'workspace-perkalian',
+      trackId: 'track-perkalian',
+      moduleId: 'module-perkalian',
+      currentTopic: 'Perkalian',
+      contentMode: 'chat',
+      status: 'active',
+      events: [],
+      currentPhase: 'evaluate',
+      phaseTransitionPending: false,
+      posttestEligible: true,
+    );
+  }
 }
 
 class _RecordingWorkspaceRepository extends _FakeWorkspaceRepository {

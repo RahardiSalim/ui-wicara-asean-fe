@@ -7,6 +7,8 @@ import 'package:wicara_mobile/src/core/accessibility/speech_controller.dart';
 import 'support/speech_fakes.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late FakeSpeechApiClient apiClient;
   late FakeAudioPlayer player;
   late FakeAudioRecorder recorder;

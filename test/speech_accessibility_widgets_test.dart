@@ -21,14 +21,25 @@ void main() {
       ),
     );
 
-    var semantics = tester.getSemantics(find.bySemanticsLabel('Read aloud'));
-    expect(semantics.hasFlag(SemanticsFlag.isButton), isTrue);
-    expect(semantics.hasFlag(SemanticsFlag.isEnabled), isFalse);
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Read aloud')),
+      containsSemantics(
+        isButton: true,
+        hasEnabledState: true,
+        isEnabled: false,
+      ),
+    );
 
-    await harness.controller.init();
+    await tester.runAsync(harness.controller.init);
     await tester.pump();
-    semantics = tester.getSemantics(find.bySemanticsLabel('Read aloud'));
-    expect(semantics.hasAction(SemanticsAction.tap), isTrue);
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Read aloud')),
+      containsSemantics(
+        isButton: true,
+        hasEnabledState: true,
+        isEnabled: true,
+      ),
+    );
   });
 
   testWidgets('MicrophoneToggle exposes states and returns text without submit', (
@@ -36,7 +47,7 @@ void main() {
   ) async {
     final harness = _SpeechHarness();
     addTearDown(harness.dispose);
-    await harness.controller.init();
+    await tester.runAsync(harness.controller.init);
     final textController = TextEditingController();
     addTearDown(textController.dispose);
     var submitCount = 0;
@@ -61,11 +72,14 @@ void main() {
     );
 
     expect(find.text('Voice input'), findsOneWidget);
-    await tester.tap(find.text('Voice input'));
+    await tester.runAsync(() => tester.tap(find.text('Voice input')));
     await tester.pump();
     expect(find.text('Listening...'), findsOneWidget);
 
-    await tester.tap(find.text('Listening...'));
+    // Stopping listening drives real async work (stream cancellation and
+    // transcription) that fake-async pumping cannot advance, so run it through
+    // runAsync before pumping the resulting UI rebuild.
+    await tester.runAsync(() => tester.tap(find.text('Listening...')));
     await tester.pumpAndSettle();
 
     expect(textController.text, 'test transcript');
@@ -78,7 +92,7 @@ void main() {
   ) async {
     final harness = _SpeechHarness()..player.autoComplete = false;
     addTearDown(harness.dispose);
-    await harness.controller.init();
+    await tester.runAsync(harness.controller.init);
 
     await tester.pumpWidget(
       harness.wrap(const SpeechStatusBanner(locale: 'en-US')),
@@ -90,12 +104,13 @@ void main() {
     await tester.pump();
 
     expect(find.text('Speaking'), findsOneWidget);
-    final semantics = tester.getSemantics(
-      find.bySemanticsLabel('Speaking').first,
+    expect(
+      tester.getSemantics(find.text('Speaking')),
+      containsSemantics(isLiveRegion: true),
     );
-    expect(semantics.hasFlag(SemanticsFlag.isLiveRegion), isTrue);
 
-    await harness.controller.stop();
+    unawaited(harness.controller.stop());
+    await tester.pump();
     await tester.pump();
     expect(find.text('Speaking'), findsNothing);
   });
@@ -105,32 +120,50 @@ void main() {
   ) async {
     final harness = _SpeechHarness()..player.autoComplete = false;
     addTearDown(harness.dispose);
-    await harness.controller.init();
+    await tester.runAsync(harness.controller.init);
     await tester.pumpWidget(harness.wrap(const StopButton(locale: 'en-US')));
 
     expect(find.text('Stop speaking'), findsNothing);
 
+    // speak()/startListening()/stop() reach their target mode within a couple of
+    // microtask turns, which plain pumps drain. The non-completing fake playback
+    // keeps the controller parked in the speaking mode.
     unawaited(harness.controller.speak('Speaking state.'));
     await tester.pump();
     await tester.pump();
     expect(find.text('Stop speaking'), findsOneWidget);
-    await harness.controller.stop();
+    unawaited(harness.controller.stop());
     await tester.pump();
 
-    await harness.controller.startListening();
+    unawaited(harness.controller.startListening());
+    await tester.pump();
     await tester.pump();
     expect(find.text('Stop speaking'), findsOneWidget);
 
+    // Gate transcription so the controller parks in the processing mode. The
+    // recorder teardown before the gate is real async, so start stopListening
+    // inside runAsync and let it advance up to the gated transcription.
     harness.apiClient.transcribeGate = Completer<String>();
-    final transcription = harness.controller.stopListening();
+    await tester.runAsync(() async {
+      unawaited(harness.controller.stopListening(locale: 'en-US'));
+      while (harness.controller.mode != SpeechMode.processing ||
+          harness.apiClient.transcribeCount == 0) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+    });
     await tester.pump();
     expect(harness.controller.mode, SpeechMode.processing);
     expect(find.text('Stop speaking'), findsOneWidget);
 
-    await harness.controller.stop();
-    harness.apiClient.transcribeGate!.complete('late transcript');
-    await transcription;
+    // Stopping mid-processing returns to idle. Run stop() inside runAsync (its
+    // recorder teardown is real async) and release the gate so the parked
+    // transcription unwinds without leaving a pending timer behind.
+    await tester.runAsync(() async {
+      await harness.controller.stop();
+      harness.apiClient.transcribeGate!.complete('late transcript');
+    });
     await tester.pump();
+    expect(harness.controller.mode, SpeechMode.idle);
     expect(find.text('Stop speaking'), findsNothing);
   });
 }

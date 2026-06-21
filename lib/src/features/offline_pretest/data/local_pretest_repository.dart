@@ -12,6 +12,7 @@ import '../domain/local_graph_scope_builder.dart';
 import '../domain/local_pretest_decision_engine.dart';
 import '../domain/local_pretest_diagnosis_service.dart';
 import '../domain/local_pretest_engine.dart';
+import '../domain/local_pretest_question_generator.dart';
 
 class LocalPretestRepository implements PretestRepository {
   LocalPretestRepository({
@@ -25,6 +26,7 @@ class LocalPretestRepository implements PretestRepository {
     LocalEvidenceEvaluator? evidenceEvaluator,
     LocalPretestDiagnosisService? diagnosisService,
     LocalGraphScopeBuilder? graphScopeBuilder,
+    LocalPretestQuestionGenerator? questionGenerator,
     ApiPretestRepository? backendRepository,
     bool forceLocalForPilot = true,
     bool allowBackendFallback = false,
@@ -42,6 +44,7 @@ class LocalPretestRepository implements PretestRepository {
          evidenceEvaluator: evidenceEvaluator,
          diagnosisService: diagnosisService,
          graphScopeBuilder: graphScopeBuilder,
+         questionGenerator: questionGenerator,
          backendRepository: backendRepository,
          forceLocalForPilot: forceLocalForPilot,
          allowBackendFallback: allowBackendFallback,

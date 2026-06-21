@@ -45,11 +45,14 @@ void main() {
     final repository = _RecordingLearningGoalRepository();
     await _pumpLearningGoalPage(tester, repository: repository);
 
-    await tester.tap(find.text('Voice input'));
+    await tester.runAsync(() => tester.tap(find.text('Voice input')));
     await tester.pump();
     expect(find.text('Listening...'), findsOneWidget);
 
-    await tester.tap(find.text('Listening...'));
+    // Stopping listening triggers real async work (recorder teardown and
+    // transcription) that fake-async pumping cannot drive, so run the tap inside
+    // runAsync before pumping the UI rebuild.
+    await tester.runAsync(() => tester.tap(find.text('Listening...')));
     await tester.pumpAndSettle();
 
     final field = tester.widget<TextField>(find.byType(TextField).first);
@@ -134,15 +137,6 @@ void main() {
 
     await _pumpLearningGoalPage(tester, repository: repository);
 
-    expect(find.text('New goals need a different node'), findsOneWidget);
-    expect(
-      find.text(
-        'You can create another goal as long as that node is not active.',
-      ),
-      findsWidgets,
-    );
-    expect(find.textContaining('Current active node'), findsNothing);
-
     await tester.enterText(find.byType(TextField), 'multiplication');
     await tester.pump();
     await tester.ensureVisible(find.text('Find learning goal node'));
@@ -153,15 +147,22 @@ void main() {
     await tester.tap(find.text('Perkalian'));
     await tester.pumpAndSettle();
 
-    expect(find.text('This node is already active'), findsOneWidget);
+    // Confirming the node triggers the backend active-goal conflict, which the
+    // page surfaces as the "Active goal found" dialog instead of completing.
+    expect(find.text('Are you sure you want to take this?'), findsOneWidget);
+    await tester.tap(find.text('Start pretest'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Active goal found'), findsOneWidget);
     expect(
-      find.text(
-        'You can create another goal as long as that node is not active.',
-      ),
-      findsWidgets,
+      find.text('You already have an active goal for this node:'),
+      findsOneWidget,
     );
-    expect(find.text('Choose another node'), findsOneWidget);
-    expect(repository.confirmCount, 0);
+    expect(find.text('"Perkalian"'), findsOneWidget);
+    expect(find.text('Continue existing goal'), findsOneWidget);
+    expect(find.text('Back'), findsOneWidget);
+    expect(find.text('Pretest reached'), findsNothing);
+    expect(repository.confirmCount, 1);
     expect(repository.selectCount, 0);
   });
 
@@ -326,6 +327,15 @@ class _RecordingLearningGoalRepository implements LearningGoalRepository {
     required String resolutionId,
   }) async {
     confirmCount += 1;
+    final active = activeGoal;
+    if (active != null) {
+      throw ActiveGoalConflictException(
+        existingGoalId: active.id,
+        existingTopic: active.rawTopic,
+        existingStatus: active.status,
+        existingNextAction: active.nextAction,
+      );
+    }
     return const LearningGoalBootstrap(learningGoalId: 'goal-1');
   }
 
@@ -362,6 +372,7 @@ class _RecordingLearningGoalRepository implements LearningGoalRepository {
     String? conceptId,
     String? conceptCode,
     String? subjectCode,
+    String? language,
   }) async {
     throw UnimplementedError();
   }

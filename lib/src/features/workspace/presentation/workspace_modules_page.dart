@@ -3311,14 +3311,20 @@ class _GeneratedWorkspaceVideoCard extends StatelessWidget {
                   const SizedBox(height: 7),
                   Row(
                     children: [
-                      _GeneratedVideoChip(durationLabel),
+                      Expanded(
+                        child: Wrap(
+                          spacing: 7,
+                          runSpacing: 7,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            _GeneratedVideoChip(durationLabel),
+                            _GeneratedVideoChip(material.aiVideoChip),
+                            if (playbackUrl.isNotEmpty)
+                              _GeneratedVideoChip(material.readyUrlChip),
+                          ],
+                        ),
+                      ),
                       const SizedBox(width: 7),
-                      _GeneratedVideoChip(material.aiVideoChip),
-                      if (playbackUrl.isNotEmpty) ...[
-                        const SizedBox(width: 7),
-                        _GeneratedVideoChip(material.readyUrlChip),
-                      ],
-                      const Spacer(),
                       Icon(
                         Icons.check_circle_rounded,
                         color: WicaraColors.accentMint,
